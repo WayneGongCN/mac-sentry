@@ -58,7 +58,7 @@ struct ContentView: View {
                         Toggle("拔电源触发", isOn: $settings.cfg.sentryTriggersPowerEnabled)
                     }.padding(.top, 12)
                 }
-                Text("基于 Lakr233/Sentry 1.3.13 · 定制版 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.1") · 人脸检测包含机主，不区分身份或活体")
+                Text("基于 Lakr233/Sentry 1.3.13 · 定制版 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0") · 人脸检测包含机主，不区分身份或活体")
                     .font(.caption).foregroundStyle(.tertiary)
             }.padding(28)
         }

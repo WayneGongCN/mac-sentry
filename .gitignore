@@ -145,3 +145,7 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 
 .build-local/
+.vercel/
+.env
+.env.*
+!.env.example

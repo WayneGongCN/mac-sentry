@@ -1,10 +1,12 @@
 # Mac 哨兵
 
-源码仓库：[git.waynegong.com/wayne/mac-sentry](https://git.waynegong.com/wayne/mac-sentry)。
+[下载最新版本](https://github.com/WayneGongCN/mac-sentry/releases/latest) · [GitHub 源码](https://github.com/WayneGongCN/mac-sentry) · [反馈问题](https://github.com/WayneGongCN/mac-sentry/issues)
 
-基于 [Lakr233/Sentry](https://github.com/Lakr233/Sentry) 1.3.13 的个人定制版，使用 SwiftUI、AVFoundation、Vision 与上游 SkyLightWindow。当前定制版为 1.0.1。保留原项目 MIT 许可及署名。
+基于 [Lakr233/Sentry](https://github.com/Lakr233/Sentry) 1.3.13 的个人定制版，使用 SwiftUI、AVFoundation、Vision 与上游 SkyLightWindow。当前定制版为 1.1.0。保留原项目 MIT 许可及署名。
 
 ## 使用
+
+从 [GitHub Releases](https://github.com/WayneGongCN/mac-sentry/releases/latest) 下载 `MacSentry-v1.1.0-macos-arm64.zip` 并解压，可使用同页的 `SHA256SUMS.txt` 校验安装包。当前发布包采用 ad-hoc 本地签名，尚未经过 Apple 公证；首次打开可能需要在“系统设置 → 隐私与安全性”中确认。
 
 将 `MacSentry.app` 放进“应用程序”目录后打开，在设置窗口点击“授权摄像头”，开启“锁屏后自动守卫”。应用驻留菜单栏，关闭设置窗口后仍然工作。同一用户重复打开不同路径的定制版时，会唤起现有实例，避免重复守卫。原版 Sentry 与本应用拥有不同的 Bundle ID，验证定制版时请退出原版，避免两套锁屏界面同时显示。
 
@@ -33,6 +35,7 @@
 ```sh
 ./scripts/build-local.sh Release
 swift test
+./scripts/package-release.sh
 ```
 
 构建脚本使用 ad-hoc 本地签名，保留 App Sandbox、摄像头、网络客户端和用户所选文件只读权限，Bundle ID 为 `com.waynegong.MacSentry`。未使用上游作者的发布签名校验。该包用于本机运行，不包含 Developer ID 公证；重新签名后可能需要重新授权摄像头。
@@ -42,3 +45,13 @@ SkyLightWindow 使用私有系统接口，系统升级后需重新检查锁屏�
 开发辅助入口：`MacSentry --verify-overlay` 在桌面做三轮多屏真实顶层窗口展示与退出自检，覆盖守卫及告警状态，以零音量检查声音循环与解除后停止；输出每屏位置、尺寸、窗口编号、解锁区比例及清理结果，不更改用户设置或发送通知。`MacSentry --verify-recording` 在授权后做 15 秒强制录像与短周期分段检查，不要求镜头里有人。其余入口：`MacSentry --export-previews` 在容器 `Documents/Previews` 导出守卫与告警的横屏、竖屏静态界面；`MacSentry --verify-capture` 在摄像头授权后进行 15 秒真实采集检查并输出本地 JSON 摘要（`faceConfirmed` 为人脸确认结果）；检测到合格人脸时会保存本地事件录像。检查模式将分段周期缩短为 3 秒，正常应用仍为 60 秒。均应在普通应用进程退出后运行。
 
 桌面自检不能代替真锁屏验收：需检查主屏密码或 Touch ID 解锁、全部屏幕退出覆盖、快速重复锁定解锁、显示器热插拔及睡眠唤醒；人脸场景还需检查中央人脸、背影、肩背、边缘路过、小脸、侧脸和弱光。扩展屏铺满时，尤其需要确认系统解锁控件没有出现在被覆盖区域。
+
+## 官网
+
+官网源码位于 `website/`，使用原生 HTML、CSS 与 JavaScript，无需安装依赖或构建。应用界面预览不包含真实摄像头图像。
+
+```sh
+python3 -m http.server 4317 --directory website
+```
+
+在 Vercel 中选择 `website` 为项目根目录，Framework Preset 使用 Other，关闭安装与构建命令，输出目录为 `.`。也可在登录 Vercel CLI 后使用 `vercel --cwd website --prod` 部署。`.vercel` 登录与项目关联信息不提交到仓库。
