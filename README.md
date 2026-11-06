@@ -1,6 +1,6 @@
 # Mac 哨兵
 
-[下载最新版本](https://github.com/WayneGongCN/mac-sentry/releases/latest) · [GitHub 源码](https://github.com/WayneGongCN/mac-sentry) · [反馈问题](https://github.com/WayneGongCN/mac-sentry/issues)
+[官网](https://mac-sentry.vercel.app) · [下载最新版本](https://github.com/WayneGongCN/mac-sentry/releases/latest) · [GitHub 源码](https://github.com/WayneGongCN/mac-sentry) · [反馈问题](https://github.com/WayneGongCN/mac-sentry/issues)
 
 基于 [Lakr233/Sentry](https://github.com/Lakr233/Sentry) 1.3.13 的个人定制版，使用 SwiftUI、AVFoundation、Vision 与上游 SkyLightWindow。当前定制版为 1.1.0。保留原项目 MIT 许可及署名。
 
@@ -48,10 +48,12 @@ SkyLightWindow 使用私有系统接口，系统升级后需重新检查锁屏�
 
 ## 官网
 
-官网源码位于 `website/`，使用原生 HTML、CSS 与 JavaScript，无需安装依赖或构建。应用界面预览不包含真实摄像头图像。
+官网：[mac-sentry.vercel.app](https://mac-sentry.vercel.app)。源码位于 `website/`，使用原生 HTML、CSS 与 JavaScript，无需安装依赖或构建。应用界面预览不包含真实摄像头图像。
 
 ```sh
 python3 -m http.server 4317 --directory website
 ```
 
-在 Vercel 中选择 `website` 为项目根目录，Framework Preset 使用 Other，关闭安装与构建命令，输出目录为 `.`。也可在登录 Vercel CLI 后使用 `vercel --cwd website --prod` 部署。`.vercel` 登录与项目关联信息不提交到仓库。
+当前 Vercel 项目已连接本 GitHub 仓库，推送 `main` 自动部署官网。项目根目录为 `website`，Framework Preset 使用 Other，关闭安装与构建命令，输出目录为 `.`。
+
+手动部署时，在仓库根目录运行 `vercel link` 关联上述项目，再运行 `vercel --prod`。根目录的 `.vercelignore` 仅上传官网文件。部署自己的副本时，同样将 Vercel 项目根目录设置为 `website`。`.vercel` 登录与项目关联信息不提交到仓库。
