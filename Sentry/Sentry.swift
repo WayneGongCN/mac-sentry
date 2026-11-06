@@ -12,8 +12,9 @@ final class Sentry: NSObject, ObservableObject {
     @Published private(set) var isAlrming = false
     @Published private(set) var cameraIssue: String?
     @Published private(set) var recordingState: RecordingState = .idle
+    @Published private(set) var media = SentryMedia()
     @Published private(set) var lastEvent = "等待下一次锁屏"
-    @Published private(set) var alarmReason = "检测到人员靠近"
+    @Published private(set) var alarmReason = "检测到中央区域人脸"
     @Published var automaticEnabled: Bool {
         didSet {
             UserDefaults.standard.set(automaticEnabled, forKey: "automaticEnabled")
@@ -21,7 +22,7 @@ final class Sentry: NSObject, ObservableObject {
         }
     }
     var configuration = SentryConfiguration()
-    private var presence = HumanPresence()
+    private var presence = FacePresence()
     private let overlay = SentryOverlay()
     private var lockState = LockState()
     private var powerAssertion: IOPMAssertionID = 0
@@ -59,6 +60,11 @@ final class Sentry: NSObject, ObservableObject {
     // 注册睡眠恢复通知和锁屏轮询，应用关窗后仍可再次布防，喵~
     func launch() {
         guard timer == nil else { return }
+        SentryMediaStore.shared.removeUnusedFiles(keeping: SentryConfigurationManager.shared.cfg.mediaReferences)
+        observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
+                                                                object: nil, queue: .main) { [weak self] _ in
+            self?.refreshOverlay()
+        })
         let center = NSWorkspace.shared.notificationCenter
         observers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             self?.isSleeping = true
@@ -118,7 +124,7 @@ final class Sentry: NSObject, ObservableObject {
             let wasActive = presence.isActive
             presence.expire(at: now)
             if wasActive && !presence.isActive {
-                logger.notice("人员事件结束，恢复守卫")
+                logger.notice("人脸事件结束，恢复守卫")
                 capture.endEvent()
             }
         }
@@ -129,6 +135,7 @@ final class Sentry: NSObject, ObservableObject {
     // 每次锁屏以当前配置创建被动展示窗口和摄像头会话，喵~
     private func run() {
         configuration = SentryConfigurationManager.shared.cfg
+        media = SentryMediaStore.shared.load(configuration)
         isMonitoring = true
         logger.notice("守卫开始")
         cameraIssue = "正在启动摄像头"
@@ -138,11 +145,17 @@ final class Sentry: NSObject, ObservableObject {
         lastNetwork = DeviceCheck.isConnectedToWirelessNetwork()
         lastPower = DeviceCheck.isConnectedToPower()
         lastEvent = "本次守卫开始于 \(Date().formatted(date: .omitted, time: .standard))"
-        if let screen = NSScreen.main {
-            overlay.present(AnyView(SentryView(sentry: self)), on: screen)
-        }
+        refreshOverlay()
         setPowerHold(DeviceCheck.isConnectedToPower())
         capture.start(detectionEnabled: configuration.sentryTriggersHumanEnabled)
+    }
+
+    // 显示器变化时只重建展示窗口，检测、告警、播放器与录像继续运行，喵~
+    private func refreshOverlay() {
+        guard isMonitoring, !isSleeping, !isDisplaySleeping, !isTerminating else { return }
+        overlay.present(on: NSScreen.screens) { reservesUnlockArea in
+            AnyView(SentryView(sentry: self, reservesUnlockArea: reservesUnlockArea))
+        }
     }
 
     // 成功解锁或暂停时释放窗口和电源占用，并等待录像自行收尾，喵~
@@ -158,6 +171,7 @@ final class Sentry: NSObject, ObservableObject {
         presence.reset()
         player?.stop()
         player = nil
+        media = SentryMedia()
         cameraIssue = nil
         lastEvent = "上次守卫已结束，等待下一次锁屏"
     }
@@ -170,27 +184,52 @@ final class Sentry: NSObject, ObservableObject {
         stop(reason: "退出应用")
     }
 
-    // 在桌面模拟告警与重复解锁清理，验证窗口服务器中没有残留顶层画面，喵~
-    func verifyStopOnDesktop(completion: @escaping ([String: Any]) -> Void) {
-        guard !isMonitoring, let screen = NSScreen.main else { completion(["passed": false]); return }
+    // 桌面模拟告警与解除，以零音量验证循环和停止，并检查所有窗口无残留，喵~
+    func verifyStopOnDesktop(warning: Bool, completion: @escaping ([String: Any]) -> Void) {
+        let screens = NSScreen.screens
+        guard !isMonitoring, !screens.isEmpty else { completion(["passed": false]); return }
         isMonitoring = true
-        isAlrming = true
+        configuration = SentryConfigurationManager.shared.cfg
+        configuration.sentryAlarmsSoundsEnabled = true
+        configuration.sentryAlarmsSoundVolume = 0
+        configuration.sentryAlarmsNotificationType = .none
         alarmReason = "界面退出自检（不采集摄像头）"
-        overlay.present(AnyView(SentryView(sentry: self)), on: screen)
+        media = SentryMediaStore.shared.load(configuration)
+        if warning {
+            for time in [0.0, 0.34, 0.68] { presence.ingest(confidence: 0.9, at: time) }
+        }
+        refreshAlarm()
+        refreshOverlay()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
-            let number = overlay.windowNumber ?? 0
-            let before = windowIsOnscreen(number)
+            let numbers = overlay.windowNumbers
+            let frames = overlay.windowFrames
+            let before = numbers.map { windowIsOnscreen($0) }
             let appKitBefore = overlay.isVisible
+            let soundMatchesState = warning ? player?.isPlaying == true && player?.numberOfLoops == -1 : player == nil
+            let framesMatch = frames == screens.map(\.frame)
+            let displays: [[String: Any]] = screens.enumerated().map { index, screen in
+                ["display": screen.localizedName, "x": screen.frame.minX, "y": screen.frame.minY,
+                 "width": screen.frame.width, "height": screen.frame.height,
+                 "unlockAreaFraction": index == 0 ? 0.30 : 0,
+                 "windowNumber": numbers.indices.contains(index) ? numbers[index] : 0]
+            }
+            presence.reset()
+            refreshAlarm()
+            let soundStoppedAfterAlarm = player == nil && !isAlrming
             lockState.receive(locked: false)
             stop(reason: "解锁回归自检")
             stop(reason: "重复停止回归自检")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
-                let after = windowIsOnscreen(number)
-                completion(["shownBefore": before, "visibleAfter": after,
-                            "windowNumber": number, "appKitVisibleBefore": appKitBefore,
+                let after = numbers.map { windowIsOnscreen($0) }
+                completion(["shownBefore": before, "visibleAfter": after, "warning": warning,
+                            "displays": displays, "framesMatch": framesMatch, "appKitVisibleBefore": appKitBefore,
+                            "soundMatchesState": soundMatchesState, "soundStoppedAfterAlarm": soundStoppedAfterAlarm,
                             "windowReferenceReleased": !overlay.isPresented,
                             "monitoringAfter": isMonitoring, "sessionRunningAfter": capture.session.isRunning,
-                            "passed": before && !after && !isMonitoring && !capture.session.isRunning])
+                            "passed": numbers.count == screens.count && framesMatch && appKitBefore
+                                && soundMatchesState && soundStoppedAfterAlarm && player == nil
+                                && before.allSatisfy { $0 } && after.allSatisfy { !$0 }
+                                && !overlay.isPresented && !isMonitoring && !capture.session.isRunning])
             }
         }
     }
@@ -203,7 +242,7 @@ final class Sentry: NSObject, ObservableObject {
         }) == true
     }
 
-    // 在主线程确认连续帧结果，人员事件结束时只停止文件写入，喵~
+    // 在主线程确认连续帧结果，人脸事件结束时只停止文件写入，喵~
     private func accept(confidence: Float, at time: TimeInterval) {
         guard isMonitoring, !isSleeping, time >= startedAt else { return }
         guard lockState.update(probe: DeviceCheck.isMacLocked()) == true else {
@@ -215,18 +254,18 @@ final class Sentry: NSObject, ObservableObject {
         let previous = presence.isActive
         if configuration.sentryTriggersHumanEnabled { presence.ingest(confidence: confidence, at: time) }
         if presence.isActive && !previous {
-            logger.notice("人形已确认，开始人员事件")
-            alarmReason = "检测到人员靠近"
-            lastEvent = "人员事件 · \(Date().formatted(date: .omitted, time: .standard))"
+            logger.notice("人脸已确认，开始人脸事件")
+            if !deviceAlarm { alarmReason = "检测到中央区域人脸" }
+            lastEvent = "人脸事件 · \(Date().formatted(date: .omitted, time: .standard))"
             if configuration.sentryRecordingEnabled { capture.beginEvent() }
         } else if previous && !presence.isActive {
-            logger.notice("人员事件结束，恢复守卫")
+            logger.notice("人脸事件结束，恢复守卫")
             capture.endEvent()
         }
         refreshAlarm()
     }
 
-    // 人员离开后恢复守卫，设备触发告警保持到解锁，喵~
+    // 合格人脸消失后恢复守卫，设备触发告警保持到解锁，喵~
     private func refreshAlarm() {
         let active = deviceAlarm || presence.isActive
         if active && !isAlrming { fireOptionalActions() }
@@ -257,11 +296,15 @@ final class Sentry: NSObject, ObservableObject {
 
     // 仅执行用户主动开启的声音或推送选项，默认仅展示视觉警告，喵~
     private func fireOptionalActions() {
-        if configuration.sentryAlarmsSoundsEnabled, let url = Bundle.main.url(forResource: "alarm", withExtension: "mp3") {
-            player = try? AVAudioPlayer(contentsOf: url)
+        if configuration.sentryAlarmsSoundsEnabled {
+            if let url = media.alarmSound { player = try? AVAudioPlayer(contentsOf: url) }
+            if player == nil, let fallback = Bundle.main.url(forResource: "alarm", withExtension: "mp3") {
+                player = try? AVAudioPlayer(contentsOf: fallback)
+                media.reportIssue("告警声音不可用，已使用内置告警音。")
+            }
             player?.volume = Float(configuration.sentryAlarmsSoundVolume)
             player?.numberOfLoops = -1
-            player?.play()
+            if player?.play() != true { media.reportIssue("无法播放告警声音，请检查音频输出设备。") }
         }
         if configuration.sentryAlarmsNotificationType == .bark,
            let endpoint = URL(string: configuration.sentryNotificationConfigBark.endpoint), endpoint.scheme == "https" {

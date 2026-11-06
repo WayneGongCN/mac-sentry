@@ -36,7 +36,7 @@ final class SentryLogicTests: XCTestCase {
 
     // 单帧误检和不连续结果不应触发告警，喵~
     func testRequiresThreeConsecutiveFrames() {
-        var state = HumanPresence()
+        var state = FacePresence()
         state.ingest(confidence: 0.9, at: 0)
         state.ingest(confidence: 0.4, at: 0.34)
         state.ingest(confidence: 0.9, at: 0.68)
@@ -46,9 +46,9 @@ final class SentryLogicTests: XCTestCase {
         XCTAssertTrue(state.isActive)
     }
 
-    // 尾录期内再次看到人员应延长同一事件，喵~
+    // 尾录期内再次看到合格人脸应延长同一事件，喵~
     func testTailExtendsAndRearms() {
-        var state = HumanPresence()
+        var state = FacePresence()
         for time in [0.0, 0.34, 0.68] { state.ingest(confidence: 0.9, at: time) }
         state.expire(at: 10.67)
         XCTAssertTrue(state.isActive)
@@ -67,7 +67,7 @@ final class SentryLogicTests: XCTestCase {
 
     // 摄像头长时间中断后不能沿用中断前的确认帧，喵~
     func testFrameGapBreaksConfirmation() {
-        var state = HumanPresence()
+        var state = FacePresence()
         state.ingest(confidence: 0.9, at: 0)
         state.ingest(confidence: 0.9, at: 0.34)
         state.ingest(confidence: 0.9, at: 3)
@@ -101,7 +101,7 @@ final class SentryLogicTests: XCTestCase {
         XCTAssertTrue(RecordingRetention.removals(from: [a], protected: [], now: now, limit: 100).isEmpty)
     }
 
-    // 读取旧版本配置时补齐人形开关且保留用户明确关闭的录像选项，喵~
+    // 读取旧版本配置时补齐人脸开关且保留用户明确关闭的录像选项，喵~
     func testConfigurationMigrationAndRoundTrip() throws {
         let old = Data(#"{"sentryTriggersLidEnabled":true,"sentryRecordingEnabled":false}"#.utf8)
         var config = try JSONDecoder().decode(SentryConfiguration.self, from: old)
@@ -110,8 +110,81 @@ final class SentryLogicTests: XCTestCase {
         XCTAssertFalse(config.sentryRecordingEnabled)
         XCTAssertEqual(SentryConfiguration().sentryAlarmsSoundVolume, 0.1)
         XCTAssertEqual(config.sentryAlarmsSoundVolume, 0.1)
+        XCTAssertNil(config.sentryGuardingImage)
+        XCTAssertNil(config.sentryAlarmImage)
+        XCTAssertNil(config.sentryAlarmSound)
         config.sentryAlarmsSoundVolume = 0.35
+        config.sentryGuardingImage = "guarding.png"
+        config.sentryAlarmImage = "warning.heic"
+        config.sentryAlarmSound = "alarm.wav"
         XCTAssertEqual(try JSONDecoder().decode(SentryConfiguration.self, from: JSONEncoder().encode(config)), config)
+    }
+
+    // 关闭检测与声音的旧配置在迁移后必须继续保持关闭，喵~
+    func testMigrationPreservesDisabledDetectionAndSound() throws {
+        let data = Data(#"{"sentryTriggersHumanEnabled":false,"sentryAlarmsSoundsEnabled":false,"sentryAlarmsSoundVolume":0.24}"#.utf8)
+        let config = try JSONDecoder().decode(SentryConfiguration.self, from: data)
+        XCTAssertFalse(config.sentryTriggersHumanEnabled)
+        XCTAssertFalse(config.sentryAlarmsSoundsEnabled)
+        XCTAssertEqual(config.sentryAlarmsSoundVolume, 0.24)
+        XCTAssertTrue(config.mediaReferences.isEmpty)
+    }
+
+    // 中央区域包含边界，边带中的高置信度人脸不能触发或遮蔽中央有效结果，喵~
+    func testFaceCentersAndMultipleFaces() {
+        for center in [CGPoint(x: 0.15, y: 0.5), CGPoint(x: 0.85, y: 0.5),
+                       CGPoint(x: 0.5, y: 0.15), CGPoint(x: 0.5, y: 0.85)] {
+            XCTAssertEqual(FaceFilter.confidence(in: [face(center: center)]), 0.9)
+        }
+        for center in [CGPoint(x: 0.149, y: 0.5), CGPoint(x: 0.851, y: 0.5),
+                       CGPoint(x: 0.5, y: 0.149), CGPoint(x: 0.5, y: 0.851)] {
+            let edge = face(center: center, confidence: 0.99)
+            XCTAssertEqual(FaceFilter.confidence(in: [edge]), 0)
+            XCTAssertEqual(FaceFilter.confidence(in: [edge, face(confidence: 0.7)]), 0.7)
+        }
+        XCTAssertEqual(FaceFilter.confidence(in: []), 0)
+        XCTAssertEqual(FaceFilter.confidence(in: [face(confidence: 0.7), face(confidence: 0.95)]), 0.95)
+    }
+
+    // 尺寸门槛包含边界，越界、过小及非有限坐标不能成为有效检测结果，喵~
+    func testFaceSizeAndFrameBounds() {
+        XCTAssertEqual(FaceFilter.confidence(in: [face(size: CGSize(width: 0.10, height: 0.10))]), 0.9)
+        for size in [CGSize(width: 0.099, height: 0.2), CGSize(width: 0.2, height: 0.099)] {
+            XCTAssertEqual(FaceFilter.confidence(in: [face(size: size)]), 0)
+        }
+        for box in [CGRect(x: -0.01, y: 0.3, width: 0.4, height: 0.4),
+                    CGRect(x: 0.3, y: -0.01, width: 0.4, height: 0.4),
+                    CGRect(x: 0.61, y: 0.3, width: 0.4, height: 0.4),
+                    CGRect(x: 0.3, y: 0.61, width: 0.4, height: 0.4),
+                    CGRect(x: CGFloat.nan, y: 0.3, width: 0.4, height: 0.4)] {
+            XCTAssertEqual(FaceFilter.confidence(in: [FaceCandidate(boundingBox: box, confidence: 0.99)]), 0)
+        }
+        XCTAssertEqual(FaceFilter.confidence(in: [face(confidence: .nan)]), 0)
+        XCTAssertEqual(FaceFilter.confidence(in: [FaceCandidate(boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1), confidence: 0.9)]), 0.9)
+    }
+
+    // 几何条件通过仍需要达到置信度门槛并连续确认，喵~
+    func testFaceFilterFeedsTemporalConfirmation() {
+        var presence = FacePresence()
+        for time in [0.0, 0.34, 0.68] {
+            presence.ingest(confidence: FaceFilter.confidence(in: [face(confidence: 0.64)]), at: time)
+        }
+        XCTAssertFalse(presence.isActive)
+        for time in [1.02, 1.36, 1.70] {
+            presence.ingest(confidence: FaceFilter.confidence(in: [face(confidence: 0.65)]), at: time)
+        }
+        XCTAssertTrue(presence.isActive)
+        presence.ingest(confidence: FaceFilter.confidence(in: [face(center: CGPoint(x: 0.1, y: 0.5))]), at: 11.69)
+        XCTAssertTrue(presence.isActive)
+        presence.expire(at: 11.70)
+        XCTAssertFalse(presence.isActive)
+    }
+
+    // 生成归一化人脸框以验证过滤策略，不依赖摄像头或 Vision 模型，喵~
+    private func face(center: CGPoint = CGPoint(x: 0.5, y: 0.5), size: CGSize = CGSize(width: 0.2, height: 0.2),
+                      confidence: Float = 0.9) -> FaceCandidate {
+        FaceCandidate(boundingBox: CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2,
+                                         width: size.width, height: size.height), confidence: confidence)
     }
 
     // 为清理策略构造无真实文件副作用的片段描述，喵~

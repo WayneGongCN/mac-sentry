@@ -5,7 +5,7 @@ struct SetupAlarmsView: View {
     var body: some View {
         FormView(title: "Setup Alarm Triggers", leftBottom: {}) {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("检测人员靠近", isOn: $vm.cfg.sentryTriggersHumanEnabled)
+                Toggle("检测中央区域人脸", isOn: $vm.cfg.sentryTriggersHumanEnabled)
                 Toggle("Closing Lid", isOn: $vm.cfg.sentryTriggersLidEnabled)
                 Toggle("Disconnected from Internet", isOn: $vm.cfg.sentryTriggersInternetEnabled)
                 Toggle("Disconnected from Power Adapter", isOn: $vm.cfg.sentryTriggersPowerEnabled)

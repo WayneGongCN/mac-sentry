@@ -10,7 +10,7 @@ enum LocalValidation {
         var results: [[String: Any]] = []
         var next: (() -> Void)?
         next = {
-            Sentry.shared.verifyStopOnDesktop { report in
+            Sentry.shared.verifyStopOnDesktop(warning: !results.isEmpty) { report in
                 results.append(report)
                 if results.count < 3 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { next?() } }
                 else {
@@ -33,23 +33,31 @@ enum LocalValidation {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         var windows: [NSWindow] = []
-        for warning in [false, true] {
-            let view = NSHostingView(rootView: ZStack(alignment: .bottom) {
-                Color(white: 0.13)
-                Text("macOS 原生解锁区域").font(.system(size: 18)).foregroundStyle(.gray).padding(.bottom, 110)
-                SentryHUD(warning: warning, session: AVCaptureSession(), isPreview: true, previewCamera: false)
-            })
-            view.frame = NSRect(x: 0, y: 0, width: 1440, height: 900)
-            let window = NSWindow(contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)
-            window.contentView = view
-            window.orderFront(nil)
-            windows.append(window)
+        let media = SentryMediaStore.shared.load(SentryConfigurationManager.shared.cfg)
+        let layouts: [(CGSize, CGFloat)] = [(CGSize(width: 1440, height: 900), 0.30),
+                                           (CGSize(width: 720, height: 1280), 0)]
+        for (size, unlockArea) in layouts {
+            for warning in [false, true] {
+                let view = NSHostingView(rootView: ZStack(alignment: .bottom) {
+                    Color(white: 0.13)
+                    if unlockArea > 0 {
+                        Text("macOS 原生解锁区域").font(.system(size: 18)).foregroundStyle(.gray).padding(.bottom, 110)
+                    }
+                    SentryHUD(warning: warning, session: AVCaptureSession(), isPreview: true, previewCamera: false,
+                              media: media, unlockAreaFraction: unlockArea)
+                })
+                view.frame = NSRect(origin: .zero, size: size)
+                let window = NSWindow(contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)
+                window.contentView = view
+                window.orderFront(nil)
+                windows.append(window)
+            }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             for (index, window) in windows.enumerated() {
                 guard let view = window.contentView, let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
                 view.cacheDisplay(in: view.bounds, to: bitmap)
-                let name = index == 0 ? "guarding.png" : "warning.png"
+                let name = ["guarding.png", "warning.png", "guarding-portrait.png", "warning-portrait.png"][index]
                 try? bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent(name))
                 window.orderOut(nil)
             }
@@ -64,9 +72,9 @@ enum LocalValidation {
         app.setActivationPolicy(.regular)
         let pipeline = CapturePipeline(segmentInterval: 3)
         var frames = 0
-        var human = HumanPresence()
+        var presence = FacePresence()
         var began = false
-        var humanConfirmed = false
+        var faceConfirmed = false
         var recordingStarted = false
         var maxConfidence: Float = 0
         var errors: [String] = []
@@ -74,9 +82,9 @@ enum LocalValidation {
         pipeline.onDetection = { confidence, time in
             frames += 1
             maxConfidence = max(maxConfidence, confidence)
-            human.ingest(confidence: confidence, at: time)
-            if human.isActive { humanConfirmed = true }
-            if human.isActive && !began { began = true; pipeline.beginEvent() }
+            presence.ingest(confidence: confidence, at: time)
+            if presence.isActive { faceConfirmed = true }
+            if presence.isActive && !began { began = true; pipeline.beginEvent() }
         }
         pipeline.onCameraIssue = { if let text = $0 { errors.append(text) } }
         pipeline.onRecordingState = { state in
@@ -86,7 +94,7 @@ enum LocalValidation {
         let finish = {
             pipeline.stop()
             pipeline.waitForFinished {
-                let report: [String: Any] = ["sampledFrames": frames, "humanConfirmed": humanConfirmed,
+                let report: [String: Any] = ["sampledFrames": frames, "faceConfirmed": faceConfirmed,
                     "recordingStarted": recordingStarted, "issues": errors, "maxConfidence": maxConfidence,
                     "forcedRecordingCheck": forceRecording,
                     "testSegmentSeconds": 3,

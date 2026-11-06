@@ -41,9 +41,11 @@ final class PreviewCamera: ObservableObject {
 
 struct DesktopPreview: View {
     let mode: PreviewMode
+    var configuration = SentryConfigurationManager.shared.cfg
     @Environment(\.dismiss) private var dismiss
     @StateObject private var camera = PreviewCamera()
     @ObservedObject private var sentry = Sentry.shared
+    @State private var media = SentryMedia()
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -56,12 +58,13 @@ struct DesktopPreview: View {
                 Text("此区域在真实锁屏时完全透明，显示 macOS 原生解锁界面")
                     .font(.callout).foregroundStyle(.secondary).padding(.bottom, 80)
                 SentryHUD(warning: mode == .warning, session: camera.pipeline.session,
-                          issue: camera.issue, isPreview: true)
+                          issue: camera.issue, isPreview: true, media: media)
             }
         }
         .frame(width: 1000, height: 720)
         .onAppear {
-            if mode == .warning { camera.pipeline.start(detectionEnabled: false) }
+            media = SentryMediaStore.shared.load(configuration)
+            if mode == .warning && media.alarmImage == nil { camera.pipeline.start(detectionEnabled: false) }
         }
         .onDisappear { camera.pipeline.stop() }
         .onReceive(sentry.$isMonitoring) { if $0 { dismiss() } }

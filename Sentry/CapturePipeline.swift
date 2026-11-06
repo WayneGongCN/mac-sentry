@@ -24,7 +24,7 @@ final class CapturePipeline: NSObject {
     private let queue = DispatchQueue(label: "com.waynegong.MacSentry.capture")
     private let sampleQueue = DispatchQueue(label: "com.waynegong.MacSentry.samples", qos: .userInitiated)
     private let frameSlots = DispatchSemaphore(value: 2)
-    private let detector = HumanDetector()
+    private let detector = FaceDetector()
     private let segmentInterval: TimeInterval
     private let logger = Logger(subsystem: "com.waynegong.MacSentry", category: "capture")
     private var configured = false
@@ -108,7 +108,7 @@ final class CapturePipeline: NSObject {
         }
     }
 
-    // 确认人形后等待下一帧创建事件文件，避免空文件和重复事件，喵~
+    // 确认人脸后等待下一帧创建事件文件，避免空文件和重复事件，喵~
     func beginEvent() {
         queue.async { [self] in
             guard monitoring, !wantsRecording else { return }
@@ -119,7 +119,7 @@ final class CapturePipeline: NSObject {
         }
     }
 
-    // 人员离开后结束文件写入，采集会话继续供下一次检测使用，喵~
+    // 合格人脸消失后结束文件写入，采集会话继续供下一次检测使用，喵~
     func endEvent() { queue.async { [self] in finishEvent() } }
 
     // 文件清理与写入状态共用串行队列，喵~

@@ -3,9 +3,11 @@ import SwiftUI
 
 struct SentryView: View {
     @ObservedObject var sentry: Sentry
+    var reservesUnlockArea = true
     var body: some View {
         SentryHUD(warning: sentry.isAlrming, session: sentry.capture.session,
-                  recording: sentry.recordingState, issue: sentry.cameraIssue, reason: sentry.alarmReason)
+                  recording: sentry.recordingState, issue: sentry.cameraIssue, reason: sentry.alarmReason,
+                  media: sentry.media, unlockAreaFraction: reservesUnlockArea ? 0.30 : 0)
     }
 }
 
@@ -14,9 +16,11 @@ struct SentryHUD: View {
     var session: AVCaptureSession
     var recording: RecordingState = .idle
     var issue: String?
-    var reason = "检测到人员靠近"
+    var reason = "检测到中央区域人脸"
     var isPreview = false
     var previewCamera = true
+    var media = SentryMedia()
+    var unlockAreaFraction: CGFloat = 0.30
     private let cyan = Color(red: 0.30, green: 0.90, blue: 0.95)
 
     var body: some View {
@@ -31,13 +35,16 @@ struct SentryHUD: View {
                             header(date: clock.date)
                             if warning { warningContent(time: time) }
                             else { guardingContent(time: time) }
+                            ForEach(media.issues, id: \.self) { message in
+                                Text(message).font(.caption).foregroundStyle(.orange)
+                            }
                             footer
                         }.padding(.horizontal, max(24, geometry.size.width * 0.055)).padding(.vertical, 20)
                     }
                     .clipped()
                 }
-                .frame(height: max(0, geometry.size.height * 0.70))
-                Color.clear.frame(height: max(0, geometry.size.height * 0.30))
+                .frame(height: max(0, geometry.size.height * (1 - unlockAreaFraction)))
+                Color.clear.frame(height: max(0, geometry.size.height * unlockAreaFraction))
             }
         }
         .preferredColorScheme(.dark)
@@ -56,28 +63,34 @@ struct SentryHUD: View {
         }.foregroundStyle(warning ? .white : cyan.opacity(0.85))
     }
 
-    // 将机械眼置于大幅卡片中央，扫描光带在卡片范围内往复移动，喵~
+    // 按屏幕方向排列机械眼或自定义图片，扫描光带保持在卡片范围内，喵~
     private func guardingContent(time: Double) -> some View {
         GeometryReader { space in
+            let portrait = space.size.height > space.size.width
+            let layout = portrait ? AnyLayout(VStackLayout(alignment: .leading, spacing: 32))
+                : AnyLayout(HStackLayout(spacing: 32))
             ZStack {
                 RoundedRectangle(cornerRadius: 28)
                     .fill(LinearGradient(colors: [Color(red: 0.03, green: 0.09, blue: 0.13), .black.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing))
                 RoundedRectangle(cornerRadius: 28).stroke(cyan.opacity(0.2), lineWidth: 1)
-                HStack(spacing: 32) {
-                    MechanicalEye(time: time)
-                        .frame(width: max(0, min(space.size.height * 0.86, space.size.width * 0.40)),
-                               height: max(0, min(space.size.height * 0.86, space.size.width * 0.40)))
+                layout {
+                    Group {
+                        if let image = media.guardingImage { Image(nsImage: image).resizable().scaledToFit() }
+                        else { MechanicalEye(time: time) }
+                    }
+                    .frame(width: max(0, min(space.size.height * (portrait ? 0.60 : 0.86), space.size.width * (portrait ? 0.70 : 0.40))),
+                           height: max(0, min(space.size.height * (portrait ? 0.60 : 0.86), space.size.width * (portrait ? 0.70 : 0.40))))
                     VStack(alignment: .leading, spacing: 18) {
                         Text("哨兵模式已开启").font(.system(size: max(1, min(38, space.size.width * 0.035)), weight: .semibold))
-                        Text(issue == nil ? "正在监测人员靠近" : "监测暂不可用")
+                        Text(issue == nil ? "正在监测中央区域人脸" : "监测暂不可用")
                             .font(.system(size: 18)).foregroundStyle(issue == nil ? cyan : .orange)
                         Rectangle().fill(cyan.opacity(0.35)).frame(width: 64, height: 2)
                         Text(issue ?? "此电脑正在受到保护\n请勿触碰或移动设备")
                             .font(.system(size: 14)).lineSpacing(7).foregroundStyle(.white.opacity(0.5))
-                        Label("接近人员将触发警告", systemImage: "viewfinder")
+                        Label("检测到人脸后触发警告", systemImage: "viewfinder")
                             .font(.system(size: 12, design: .monospaced)).foregroundStyle(cyan.opacity(0.7))
                     }
-                    Spacer(minLength: 0)
+                    if !portrait { Spacer(minLength: 0) }
                 }.padding(24)
                 Rectangle()
                     .fill(LinearGradient(colors: [.clear, cyan.opacity(0.10), cyan.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom))
@@ -88,13 +101,16 @@ struct SentryHUD: View {
         }
     }
 
-    // 告警以完整实时画面为主体，警灯和文案不写入摄像头录像，喵~
+    // 告警显示自定义图片或完整实时画面，展示内容不写入摄像头录像，喵~
     private func warningContent(time: Double) -> some View {
         VStack(spacing: 10) {
             RotatingBeacon(time: time).frame(height: 48)
             ZStack(alignment: .topLeading) {
                 Color.black
-                if previewCamera { CameraPreviewView(captureSession: session) }
+                if let image = media.alarmImage {
+                    Image(nsImage: image).resizable().scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if previewCamera { CameraPreviewView(captureSession: session) }
                 else {
                     VStack(spacing: 12) {
                         Image(systemName: "video.fill").font(.system(size: 40))
@@ -121,9 +137,9 @@ struct SentryHUD: View {
 
     private var footer: some View {
         HStack {
-            Label(warning ? "人员接近警告" : "本地监测", systemImage: warning ? "exclamationmark.shield" : "shield.lefthalf.filled")
+            Label(warning ? "告警已触发" : "本地监测", systemImage: warning ? "exclamationmark.shield" : "shield.lefthalf.filled")
             Spacer()
-            Text("使用下方系统界面解锁")
+            if unlockAreaFraction > 0 { Text("使用下方系统界面解锁") }
         }.font(.system(size: 11)).tracking(1).foregroundStyle(.white.opacity(0.35))
     }
 }
