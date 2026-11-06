@@ -1,75 +1,40 @@
-# Sentry
+# Mac 哨兵
 
-<p align="center">
-  <a href="README.md">English</a> |
-  <a href="./Resources/i18n/zh-Hans/README.md">简体中文</a>
-</p>
+源码仓库：[git.waynegong.com/wayne/mac-sentry](https://git.waynegong.com/wayne/mac-sentry)。
 
-A powerful macOS security monitoring application that detects unauthorized access attempts and records video evidence for you.
+基于 [Lakr233/Sentry](https://github.com/Lakr233/Sentry) 1.3.13 的个人定制版，使用 SwiftUI、AVFoundation、Vision 与上游 SkyLightWindow。当前定制版为 1.0.1。保留原项目 MIT 许可及署名。
 
-Picture this: you're vibing and coding in a coffee shop when nature calls. You have to step away but don't want to lug your laptop to the restroom. Simply activate Sentry mode, and if anything suspicious happens, you can quickly wrap things up and rush back to the scene!
+## 使用
 
-## Preview
+将 `MacSentry.app` 放进“应用程序”目录后打开，在设置窗口点击“授权摄像头”，开启“锁屏后自动守卫”。应用驻留菜单栏，关闭设置窗口后仍然工作。同一用户重复打开不同路径的定制版时，会唤起现有实例，避免重复守卫。原版 Sentry 与本应用拥有不同的 Bundle ID，验证定制版时请退出原版，避免两套锁屏界面同时显示。
 
-![Preview Image](./Resources/Preview.png)
+锁屏后展示机械眼扫描界面，连续三次确认人员靠近后显示实时画面、驱离文案和旋转红蓝警灯。任何人形都可能触发，包括机主；检测不包含身份或活体判断。底部 30% 保持透明以显示系统解锁区域，窗口不接收鼠标或键盘输入。解锁后通过系统通知立即拆除画面与预览，并用轮询和视频帧回调补充校验；下一次锁屏可再次触发。
 
-## Features
+“预览机械眼与扫描”和“预览实时画面与警灯”仅展示界面，不录像。告警预览会打开摄像头，关闭预览后释放。
 
-- 🔒 **Comprehensive Monitoring**: Track lid status, network connectivity, and power connection
-- 📹 **Automatic Recording**: Records video clips when enabled
-- 🚨 **Multi-Alert System**: Sound alarms and push notifications via Bark
-- 🎯 **Real-time Detection**: Instant monitoring of device state changes
+“声音与通知设置”提供独立的告警音量滑块（0–100%，默认 10%）和“试听 2 秒”按钮。试听可随时停止，关闭设置也会立即停止；试听不会开启声音告警。声音开关默认关闭，开启后按所选音量循环播放，告警解除后停止。应用不修改系统音量，实际响度仍受系统音量与输出设备影响。
 
-## System Requirements
+## 录像与电源
 
-- macOS 13.0+
-- Camera access permission for video recording
+- 每秒最多进行三次本地上半身检测，置信度阈值 0.65，连续三次确认后触发。
+- 人形事件录像目标为 720p、15fps、无声 H.264 MOV，人员离开后续录 10 秒，再次出现会延长同一事件。
+- 使用 AVAssetWriter 独立写入原始视频帧，摄像头停止与文件编码收尾互不阻塞。长事件每 60 秒切换文件；文件完成写入前始终受清理保护。文件写入器实际接收视频帧之后才显示“正在录像”。
+- 本应用容器的 `Documents/VideoClip` 保存录像，点击“打开录像目录”访问。超过 24 小时或总量 5GB 时清理最早的已完成片段。
+- 磁盘不足、摄像头未授权或采集中断时显示故障。录像只保存摄像头画面，界面文案和警灯不写入文件。
+- 接电且守卫期间使用应用级电源断言保持亮屏。电池供电遵循系统电源设置；合盖、主动睡眠和低电量睡眠仍可能中断采集。屏幕熄灭或睡眠前收尾并释放摄像头，唤醒后仍锁定则恢复。
+- 设置变更在下一次锁屏生效；“锁屏后自动守卫”开关立即生效。声音、Bark 与设备触发默认关闭，按需在设置中开启。
 
-## Installation
+## 本地构建
 
-1. Download Sentry from the Mac App Store:
+要求 Apple Silicon Mac、Xcode 16.3 或更高版本、macOS 13 或更高版本。实际验收环境以本机 macOS 为准。
 
-[![App Store Icon](./Resources/Download_on_the_App_Store_Badge_US-UK_RGB_blk_092917.svg)](https://apps.apple.com/us/app/sentry-just-step-away/id6746349629)
-
-2. Disable auto sleep mode [see below](#installation---disable-auto-sleep)
-3. When you need it, launch Sentry from your Applications folder.
-
-If you dont wanna buy it from App Store, you can also build it from source. In that case Sentry is free.
-
-## Installation - Disable Auto Sleep
-
-To ensure Sentry works effectively, you need to prevent your Mac from sleeping. Without this setup, if someone closes the lid quickly, your Mac may go to sleep before Sentry can trigger sound alerts or send notifications. Use one of the following methods to resolve this issue:
-
-### Option 1: Use SleepHoldService
-
-Sentry automatically prevents your Mac from sleeping by utilizing [SleepHoldService](https://github.com/Lakr233/SleepHoldService). Install this service by running the following terminal command:
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Lakr233/SleepHoldService/HEAD/net_install.sh)"
+```sh
+./scripts/build-local.sh Release
+swift test
 ```
 
-### Option 2: Use `pmset` Command
+构建脚本使用 ad-hoc 本地签名，保留 App Sandbox、摄像头和网络客户端权限，Bundle ID 为 `com.waynegong.MacSentry`。未使用上游作者的发布签名校验。该包用于本机运行，不包含 Developer ID 公证；重新签名后可能需要重新授权摄像头。
 
-You may need to disable sleep mode to ensure a working alarm using command line below:
+SkyLightWindow 使用私有系统接口，系统升级后需重新检查锁屏展示和系统解锁区域。
 
-```bash
-sudo pmset -a disablesleep 1
-```
-
-To re-enable sleep mode, use:
-
-```bash
-sudo pmset -a disablesleep 0
-```
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-## Disclaimer
-
-This software is intended for legitimate security monitoring of your own devices. Users are responsible for ensuring compliance with local laws and regulations regarding recording and monitoring.
-
----
-
-Copyright 2025 © Lakr Aream. All rights reserved.
+开发辅助入口：`MacSentry --verify-overlay` 在桌面做三轮真实顶层窗口退出自检；`MacSentry --verify-recording` 在授权后做 15 秒强制录像与短周期分段检查，不要求镜头里有人。其余入口：`MacSentry --export-previews` 在容器 `Documents/Previews` 导出两种静态界面，`MacSentry --verify-capture` 在摄像头授权后进行 15 秒真实采集检查并输出本地 JSON 摘要；检测到人员时会保存本地事件录像；检查模式将分段周期缩短为 3 秒，正常应用仍为 60 秒。均应在普通应用进程退出后运行。

@@ -1,389 +1,289 @@
-//
-//  Sentry.swift
-//  Sentry
-//
-//  Created by 秋星桥 on 5/24/25.
-//
-
 import AppKit
-import AVFAudio
 import AVFoundation
-import AVKit
-import Foundation
-import SkyLightWindow
+import AVFAudio
+import IOKit.pwr_mgt
+import OSLog
 import SwiftUI
 
-class Sentry: NSObject, ObservableObject {
-    // MARK: - FOR VIEWS
-
-    // updated from isCurrentlyAlarming
-    @Published var isAlrming: Bool = false
-
-    // MARK: - Configuration & Callbacks
-
-    let configuration: SentryConfiguration
-    let onAlarmingActivaty: (_ reason: String) -> Void
-
-    // MARK: - Status Management
-
-    enum Status {
-        case run
-        case tearingDown
-        case stop
+final class Sentry: NSObject, ObservableObject {
+    static let shared = Sentry()
+    let capture = CapturePipeline()
+    @Published private(set) var isMonitoring = false
+    @Published private(set) var isAlrming = false
+    @Published private(set) var cameraIssue: String?
+    @Published private(set) var recordingState: RecordingState = .idle
+    @Published private(set) var lastEvent = "等待下一次锁屏"
+    @Published private(set) var alarmReason = "检测到人员靠近"
+    @Published var automaticEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(automaticEnabled, forKey: "automaticEnabled")
+            if !automaticEnabled { stop(reason: "已关闭自动守卫") }
+        }
     }
+    var configuration = SentryConfiguration()
+    private var presence = HumanPresence()
+    private let overlay = SentryOverlay()
+    private var lockState = LockState()
+    private var powerAssertion: IOPMAssertionID = 0
+    private var timer: Timer?
+    private var observers: [NSObjectProtocol] = []
+    private var isSleeping = false
+    private var isTerminating = false
+    private var isDisplaySleeping = false
+    private var deviceAlarm = false
+    private var lastFrame: TimeInterval = 0
+    private var startedAt: TimeInterval = 0
+    private var lastRecovery: TimeInterval = 0
+    private var lastLid: Bool?
+    private var lastNetwork: Bool?
+    private var lastPower: Bool?
+    private var lastCleanup = Date.distantPast
+    private var player: AVAudioPlayer?
+    private let logger = Logger(subsystem: "com.waynegong.MacSentry", category: "sentry")
 
-    private var status: Status = .stop
-    private var windowController: NSWindowController?
-
-    // MARK: - Device State Tracking
-
-    private var lastLidState: Bool?
-    private var lastNetworkState: Bool?
-    private var lastPowerState: Bool?
-    private var initialSpeakerVolume: Float = 0.0
-
-    // MARK: - Alarm System
-
-    private var isCurrentlyAlarming: Bool = false {
-        didSet { DispatchQueue.main.async { self.isAlrming = self.isCurrentlyAlarming } }
-    }
-
-    private var audioPlayer: AVAudioPlayer?
-    private var volumeTimer: Timer?
-    private var notificationPosted: Bool = false
-
-    // MARK: - Recording System
-
-    private var captureSession: AVCaptureSession?
-    private var videoFileOutput: AVCaptureMovieFileOutput?
-    private var currentRecordingURL: URL?
-    private var recordingStartTime: Date?
-
-    // MARK: - Initialization
-
-    init(configuration: SentryConfiguration, onAlarmingActivaty: @escaping (_ reason: String) -> Void) {
-        self.configuration = configuration
-        self.onAlarmingActivaty = onAlarmingActivaty
+    // 让守卫控制器独立于窗口生命周期常驻，喵~
+    override init() {
+        automaticEnabled = UserDefaults.standard.object(forKey: "automaticEnabled") as? Bool ?? true
         super.init()
+        capture.onDetection = { [weak self] confidence, time in self?.accept(confidence: confidence, at: time) }
+        capture.onCameraIssue = { [weak self] message in
+            guard let self, self.isMonitoring else { return }
+            self.cameraIssue = message
+            self.presence.reset()
+            self.capture.endEvent()
+            self.refreshAlarm()
+        }
+        capture.onRecordingState = { [weak self] state in self?.recordingState = state }
     }
 
-    // MARK: - Public Methods
-
-    func run() {
-        assert(status == .stop, "Sentry is already running")
-        status = .run
-        assert(Thread.isMainThread)
-        windowController = SkyLightOperator.shared.delegateView(
-            AnyView(SentryView(sentry: self)),
-            toScreen: .main!
-        )
-        if configuration.sentryRecordingEnabled {
-            startRecording()
+    // 注册睡眠恢复通知和锁屏轮询，应用关窗后仍可再次布防，喵~
+    func launch() {
+        guard timer == nil else { return }
+        let center = NSWorkspace.shared.notificationCenter
+        observers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.isSleeping = true
+            self?.stop(reason: "系统即将睡眠")
+        })
+        observers.append(center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.isSleeping = false
+            self?.tick()
+        })
+        observers.append(center.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.isDisplaySleeping = true
+            self?.stop(reason: "屏幕已熄灭")
+        })
+        observers.append(center.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.isDisplaySleeping = false
+            self?.tick()
+        })
+        let notifications = DistributedNotificationCenter.default()
+        for (name, locked) in [("com.apple.screenIsLocked", true), ("com.apple.screenIsUnlocked", false)] {
+            observers.append(notifications.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                self.lockState.receive(locked: locked)
+                if locked { self.tick() }
+                else { self.stop(reason: "收到系统解锁通知") }
+            })
         }
-        initialSpeakerVolume = AlarmEngine.readSystemVolume() ?? 0
-        Thread {
-            while self.status == .run {
-                sleep(1)
-                self.executeOnce()
+        let watcher = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
+        RunLoop.main.add(watcher, forMode: .common)
+        timer = watcher
+        capture.clean()
+        tick()
+    }
+
+    // 根据实际锁定状态启停守卫，并处理尾录、采集故障和电源变化，喵~
+    private func tick() {
+        guard !isTerminating, !isSleeping, !isDisplaySleeping else { return }
+        if let locked = lockState.update(probe: DeviceCheck.isMacLocked()) {
+            if locked && automaticEnabled && !isMonitoring && SentryConfigurationManager.shared.canActivate { run() }
+            if !locked && (isMonitoring || overlay.isPresented) { stop(reason: "会话轮询已解锁") }
+        }
+        if Date().timeIntervalSince(lastCleanup) >= 60 {
+            lastCleanup = Date()
+            capture.clean()
+        }
+        guard isMonitoring else { return }
+        setPowerHold(DeviceCheck.isConnectedToPower())
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - lastFrame > 3 {
+            cameraIssue = "摄像头未返回画面，检测暂停"
+            presence.reset()
+            capture.endEvent()
+            if now - lastRecovery >= 10 {
+                lastRecovery = now
+                capture.recover()
+            }
+        } else {
+            let wasActive = presence.isActive
+            presence.expire(at: now)
+            if wasActive && !presence.isActive {
+                logger.notice("人员事件结束，恢复守卫")
+                capture.endEvent()
             }
         }
-        .start()
+        checkDeviceTriggers()
+        refreshAlarm()
     }
 
-    func stop() {
-        guard status == .run else { return }
-        status = .tearingDown
-        stopRecording()
-        unlockAlarm()
-        SentryConfigurationManager.shared.disconnectFromSleepHold()
-        AlarmEngine.setSystemVolume(initialSpeakerVolume)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
-            windowController?.window?.contentView?.animator().alphaValue = 0
-        } completionHandler: {
-            self.windowController?.close()
-            self.status = .stop
-            self.resetStates()
+    // 每次锁屏以当前配置创建被动展示窗口和摄像头会话，喵~
+    private func run() {
+        configuration = SentryConfigurationManager.shared.cfg
+        isMonitoring = true
+        logger.notice("守卫开始")
+        cameraIssue = "正在启动摄像头"
+        lastFrame = ProcessInfo.processInfo.systemUptime
+        startedAt = lastFrame
+        lastLid = DeviceCheck.isMacLidClosed()
+        lastNetwork = DeviceCheck.isConnectedToWirelessNetwork()
+        lastPower = DeviceCheck.isConnectedToPower()
+        lastEvent = "本次守卫开始于 \(Date().formatted(date: .omitted, time: .standard))"
+        if let screen = NSScreen.main {
+            overlay.present(AnyView(SentryView(sentry: self)), on: screen)
         }
+        setPowerHold(DeviceCheck.isConnectedToPower())
+        capture.start(detectionEnabled: configuration.sentryTriggersHumanEnabled)
     }
 
-    func unlockAlarm() {
-        guard isCurrentlyAlarming else { return }
-        isCurrentlyAlarming = false
-        stopAlarm()
+    // 成功解锁或暂停时释放窗口和电源占用，并等待录像自行收尾，喵~
+    func stop(reason: String = "手动停止") {
+        let hadSession = isMonitoring || overlay.isPresented
+        overlay.dismiss()
+        capture.stop()
+        setPowerHold(false)
+        isMonitoring = false
+        if hadSession { logger.notice("守卫结束：\(reason, privacy: .public)，顶层窗口已拆除") }
+        isAlrming = false
+        deviceAlarm = false
+        presence.reset()
+        player?.stop()
+        player = nil
+        cameraIssue = nil
+        lastEvent = "上次守卫已结束，等待下一次锁屏"
     }
 
-    // MARK: - Private Methods - State Management
-
-    private func resetStates() {
-        lastLidState = nil
-        lastNetworkState = nil
-        lastPowerState = nil
-        isCurrentlyAlarming = false
-        stopAlarm()
-        stopRecording()
+    // 退出进程前停止后续布防，避免文件收尾期间再次创建顶层窗口，喵~
+    func shutdown() {
+        isTerminating = true
+        timer?.invalidate()
+        timer = nil
+        stop(reason: "退出应用")
     }
 
-    // MARK: - Private Methods - Monitoring
-
-    private func executeOnce() {
-        guard !isCurrentlyAlarming else { return }
-
-        SentryConfigurationManager.shared.communicateWithSleepHoldServiceIfNeeded()
-
-        if configuration.sentryTriggersLidEnabled {
-            checkLidState()
-        }
-        if configuration.sentryTriggersInternetEnabled {
-            checkNetworkState()
-        }
-        if configuration.sentryTriggersPowerEnabled {
-            checkPowerState()
-        }
-    }
-
-    private func checkLidState() {
-        guard let currentLidState = DeviceCheck.isMacLidClosed() else { return }
-
-        if lastLidState == nil {
-            lastLidState = currentLidState
-            return
-        }
-
-        if let lastState = lastLidState, !lastState, currentLidState {
-            triggerAlarm(reason: String(localized: "Mac Lid Closed"))
-        }
-
-        lastLidState = currentLidState
-    }
-
-    private func checkNetworkState() {
-        let currentNetworkState = DeviceCheck.isConnectedToWirelessNetwork()
-
-        if lastNetworkState == nil {
-            lastNetworkState = currentNetworkState
-            return
-        }
-
-        if let lastState = lastNetworkState, lastState, !currentNetworkState {
-            triggerAlarm(reason: String(localized: "Network Disconnected"))
-        }
-
-        lastNetworkState = currentNetworkState
-    }
-
-    private func checkPowerState() {
-        let currentPowerState = DeviceCheck.isConnectedToPower()
-
-        if lastPowerState == nil {
-            lastPowerState = currentPowerState
-            return
-        }
-
-        if let lastState = lastPowerState, lastState, !currentPowerState {
-            triggerAlarm(reason: String(localized: "Power Disconnected"))
-        }
-
-        lastPowerState = currentPowerState
-    }
-
-    // MARK: - Private Methods - Alarm System
-
-    private func triggerAlarm(reason: String) {
-        guard !isCurrentlyAlarming else { return }
-        isCurrentlyAlarming = true
-        DispatchQueue.main.async {
-            self.onAlarmingActivaty(reason)
-        }
-        executeAlarmActions(reason: reason)
-    }
-
-    private func executeAlarmActions(reason: String) {
-        if configuration.sentryAlarmsSoundsEnabled {
-            playAlarmSound()
-        }
-
-        switch configuration.sentryAlarmsNotificationType {
-        case .bark:
-            sendBarkNotification(message: reason)
-        case .none:
-            break
-        }
-    }
-
-    private func playAlarmSound() {
-        guard let soundURL = Bundle.main.url(forResource: "alarm", withExtension: "mp3") else {
-            assertionFailure()
-            return
-        }
-
-        do {
-            let audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
-            self.audioPlayer = audioPlayer
-            audioPlayer.numberOfLoops = -1 // 无限循环
-            audioPlayer.volume = 0.1 // 开始时 10% 音量
-            audioPlayer.currentDevice = "BuiltInSpeakerDevice"
-            audioPlayer.play()
-
-            startVolumeTimer()
-        } catch {
-            print("[-] failed to play alarm sound: \(error)")
-        }
-    }
-
-    private func startVolumeTimer() {
-        volumeTimer?.invalidate()
-        var currentStep = 0
-        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] timer in
-            guard let self, isCurrentlyAlarming else {
-                timer.invalidate()
-                return
-            }
-            AlarmEngine.setSystemVolume(1)
-
-            currentStep += 1
-            if currentStep <= 3 { return }
-
-            let newVolume = min(1.0, 0.1 + Float(currentStep - 3) * 0.2)
-            audioPlayer?.volume = newVolume
-
-            print("[*] alarm sound volume: \(newVolume)")
-
-            if newVolume >= 1.0 {
-                timer.invalidate()
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        volumeTimer = timer
-    }
-
-    private func stopAlarm() {
-        volumeTimer?.invalidate()
-        volumeTimer = nil
-        audioPlayer?.stop()
-        audioPlayer = nil
-    }
-
-    // MARK: - Private Methods - Notifications
-
-    private func sendBarkNotification(message: String) {
-        guard !notificationPosted else { return }
-        guard configuration.sentryAlarmsNotificationType == .bark else { return }
-        guard let initialURL = URL(string: configuration.sentryNotificationConfigBark.endpoint) else {
-            return
-        }
-        let newURL = initialURL
-            .appendingPathComponent(String(localized: "Sentry - Mac"))
-            .appendingPathComponent(message)
-        guard var comps = URLComponents(url: newURL, resolvingAgainstBaseURL: false) else { return }
-        comps.queryItems = [
-            .init(name: "level", value: "critical"),
-            .init(name: "volume", value: "5"),
-            .init(name: "group", value: String(localized: "Sentry - Mac")),
-            .init(name: "isArchive", value: "1"),
-            .init(name: "call", value: "1"),
-            .init(name: "icon", value: "https://github.com/Lakr233/Sentry/blob/main/Sentry/Assets.xcassets/icon-512.imageset/icon-512@2x.png?raw=true"),
-        ]
-        let url = comps.url
-        guard let url else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        URLSession.shared.dataTask(with: request) { _, _, error in
-            if let error {
-                print("[*] bark push error: \(error)")
-            }
-        }.resume()
-    }
-
-    // MARK: - Private Methods - Recording
-
-    private func startRecording() {
-        print("[*] start recording camera...")
-
-        guard captureSession == nil else { return }
-        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else {
-            print("[*] camera permission not granted")
-            return
-        }
-        captureSession = AVCaptureSession()
-        guard let captureSession else { return }
-
-        captureSession.beginConfiguration()
-
-        if captureSession.canSetSessionPreset(.medium) {
-            captureSession.sessionPreset = .medium
-        }
-        guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
-              let videoDeviceInput = try? AVCaptureDeviceInput(device: videoDevice),
-              captureSession.canAddInput(videoDeviceInput)
-        else {
-            print("[*] failed to add video input")
-            captureSession.commitConfiguration()
-            self.captureSession = nil
-            return
-        }
-
-        captureSession.addInput(videoDeviceInput)
-        videoFileOutput = AVCaptureMovieFileOutput()
-        guard let videoFileOutput,
-              captureSession.canAddOutput(videoFileOutput)
-        else {
-            print("[*] failed to add video output")
-            captureSession.commitConfiguration()
-            self.captureSession = nil
-            return
-        }
-
-        captureSession.addOutput(videoFileOutput)
-        captureSession.commitConfiguration()
-
-        recordingStartTime = Date()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let fileName = "Sentry_\(formatter.string(from: recordingStartTime!)).mov"
-        currentRecordingURL = videoClipDir.appendingPathComponent(fileName)
-
-        try? FileManager.default.createDirectory(
-            at: videoClipDir,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-        DispatchQueue.global(qos: .background).async {
-            captureSession.startRunning()
-
-            if let outputURL = self.currentRecordingURL {
-                videoFileOutput.startRecording(to: outputURL, recordingDelegate: self)
-                print("[*] recording started to: \(outputURL.path)")
+    // 在桌面模拟告警与重复解锁清理，验证窗口服务器中没有残留顶层画面，喵~
+    func verifyStopOnDesktop(completion: @escaping ([String: Any]) -> Void) {
+        guard !isMonitoring, let screen = NSScreen.main else { completion(["passed": false]); return }
+        isMonitoring = true
+        isAlrming = true
+        alarmReason = "界面退出自检（不采集摄像头）"
+        overlay.present(AnyView(SentryView(sentry: self)), on: screen)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
+            let number = overlay.windowNumber ?? 0
+            let before = windowIsOnscreen(number)
+            let appKitBefore = overlay.isVisible
+            lockState.receive(locked: false)
+            stop(reason: "解锁回归自检")
+            stop(reason: "重复停止回归自检")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [self] in
+                let after = windowIsOnscreen(number)
+                completion(["shownBefore": before, "visibleAfter": after,
+                            "windowNumber": number, "appKitVisibleBefore": appKitBefore,
+                            "windowReferenceReleased": !overlay.isPresented,
+                            "monitoringAfter": isMonitoring, "sessionRunningAfter": capture.session.isRunning,
+                            "passed": before && !after && !isMonitoring && !capture.session.isRunning])
             }
         }
     }
 
-    private func stopRecording() {
-        guard let captureSession else { return }
+    // 只读取本应用已知窗口的可见性元数据，不截取屏幕内容，喵~
+    private func windowIsOnscreen(_ number: Int) -> Bool {
+        let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]]
+        return windows?.contains(where: {
+            ($0[kCGWindowNumber as String] as? Int) == number && ($0[kCGWindowIsOnscreen as String] as? Bool) == true
+        }) == true
+    }
 
-        print("[*] stop recording camera...")
-
-        videoFileOutput?.stopRecording()
-
-        DispatchQueue.global(qos: .background).async {
-            captureSession.stopRunning()
+    // 在主线程确认连续帧结果，人员事件结束时只停止文件写入，喵~
+    private func accept(confidence: Float, at time: TimeInterval) {
+        guard isMonitoring, !isSleeping, time >= startedAt else { return }
+        guard lockState.update(probe: DeviceCheck.isMacLocked()) == true else {
+            stop(reason: "视频帧回调确认已解锁")
+            return
         }
+        lastFrame = time
+        cameraIssue = nil
+        let previous = presence.isActive
+        if configuration.sentryTriggersHumanEnabled { presence.ingest(confidence: confidence, at: time) }
+        if presence.isActive && !previous {
+            logger.notice("人形已确认，开始人员事件")
+            alarmReason = "检测到人员靠近"
+            lastEvent = "人员事件 · \(Date().formatted(date: .omitted, time: .standard))"
+            if configuration.sentryRecordingEnabled { capture.beginEvent() }
+        } else if previous && !presence.isActive {
+            logger.notice("人员事件结束，恢复守卫")
+            capture.endEvent()
+        }
+        refreshAlarm()
+    }
 
-        self.captureSession = nil
-        videoFileOutput = nil
-        currentRecordingURL = nil
-        recordingStartTime = nil
+    // 人员离开后恢复守卫，设备触发告警保持到解锁，喵~
+    private func refreshAlarm() {
+        let active = deviceAlarm || presence.isActive
+        if active && !isAlrming { fireOptionalActions() }
+        if !active && isAlrming {
+            player?.stop()
+            player = nil
+            capture.endEvent()
+        }
+        isAlrming = active
+    }
+
+    // 保留上游的合盖、断网、拔电源三个可选触发条件，喵~
+    private func checkDeviceTriggers() {
+        let lid = DeviceCheck.isMacLidClosed()
+        let network = DeviceCheck.isConnectedToWirelessNetwork()
+        let power = DeviceCheck.isConnectedToPower()
+        if configuration.sentryTriggersLidEnabled && lastLid == false && lid == true {
+            deviceAlarm = true; alarmReason = "检测到合盖操作"
+        }
+        if configuration.sentryTriggersInternetEnabled && lastNetwork == true && !network {
+            deviceAlarm = true; alarmReason = "检测到网络断开"
+        }
+        if configuration.sentryTriggersPowerEnabled && lastPower == true && !power {
+            deviceAlarm = true; alarmReason = "检测到电源断开"
+        }
+        lastLid = lid; lastNetwork = network; lastPower = power
+    }
+
+    // 仅执行用户主动开启的声音或推送选项，默认仅展示视觉警告，喵~
+    private func fireOptionalActions() {
+        if configuration.sentryAlarmsSoundsEnabled, let url = Bundle.main.url(forResource: "alarm", withExtension: "mp3") {
+            player = try? AVAudioPlayer(contentsOf: url)
+            player?.volume = Float(configuration.sentryAlarmsSoundVolume)
+            player?.numberOfLoops = -1
+            player?.play()
+        }
+        if configuration.sentryAlarmsNotificationType == .bark,
+           let endpoint = URL(string: configuration.sentryNotificationConfigBark.endpoint), endpoint.scheme == "https" {
+            let url = endpoint.appendingPathComponent("Mac 哨兵").appendingPathComponent(alarmReason)
+            URLSession.shared.dataTask(with: url).resume()
+        }
+    }
+
+    // 仅在接电守卫期间持有应用级亮屏断言，不改全局睡眠设置，喵~
+    private func setPowerHold(_ enabled: Bool) {
+        if enabled && powerAssertion == 0 {
+            let status = IOPMAssertionCreateWithName(kIOPMAssertPreventUserIdleDisplaySleep as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn), "Mac 哨兵正在接电守卫" as CFString, &powerAssertion)
+            if status != kIOReturnSuccess { powerAssertion = 0 }
+        } else if !enabled && powerAssertion != 0 {
+            IOPMAssertionRelease(powerAssertion)
+            powerAssertion = 0
+        }
     }
 }
 
-// MARK: - AVCaptureFileOutputRecordingDelegate
-
-extension Sentry: AVCaptureFileOutputRecordingDelegate {
-    func fileOutput(_: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from _: [AVCaptureConnection], error: Error?) {
-        if let error {
-            print("[*] recording finished with error: \(error)")
-        } else {
-            print("[*] recording finished successfully: \(outputFileURL.path)")
-        }
-    }
+final class PassiveSentryPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 }

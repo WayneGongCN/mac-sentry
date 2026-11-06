@@ -1,33 +1,17 @@
-//
-//  main.swift
-//  Sentry
-//
-//  Created by 秋星桥 on 5/24/25.
-//
-
 import AppKit
 import Foundation
 
-#if !DEBUG
-    fclose(stdout)
-    fclose(stderr)
-
-    Security.removeDebugger()
-    guard Security.validateAppSignature() else {
-        Security.crashOut()
-    }
-#endif
-
-do {
-    // make sure sandbox is enabled otherwise panic the app
-    let sandboxTestDir = URL(fileURLWithPath: "/tmp/sandbox.test.\(UUID().uuidString)")
-    FileManager.default.createFile(atPath: sandboxTestDir.path, contents: nil, attributes: nil)
-    if FileManager.default.fileExists(atPath: sandboxTestDir.path) {
-        fatalError("This app should not run outside of sandbox which may cause trouble.")
-    }
-}
-
 let documentDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-let videoClipDir = documentDir.appendingPathComponent("VideoClip")
+let videoClipDir = documentDir.appendingPathComponent("VideoClip", isDirectory: true)
 
-App.main()
+if CommandLine.arguments.contains("--export-previews") { LocalValidation.exportPreviews() }
+else if CommandLine.arguments.contains("--verify-overlay") { LocalValidation.verifyOverlay() }
+else if CommandLine.arguments.contains("--verify-recording") { LocalValidation.verifyCapture(forceRecording: true) }
+else if CommandLine.arguments.contains("--verify-capture") { LocalValidation.verifyCapture() }
+else {
+    let identifier = Bundle.main.bundleIdentifier ?? "com.waynegong.MacSentry"
+    if let existing = NSRunningApplication.runningApplications(withBundleIdentifier: identifier)
+        .first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
+        existing.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+    } else { App.main() }
+}

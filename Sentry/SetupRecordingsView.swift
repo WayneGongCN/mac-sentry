@@ -1,157 +1,69 @@
-//
-//  SetupRecordingsView.swift
-//  Sentry
-//
-//  Created by 秋星桥 on 5/24/25.
-//
-
 import AppKit
 import AVFoundation
 import SwiftUI
 
-class CameraManager: NSObject, ObservableObject {
-    @Published var isAuthorized = false
-    @Published var authorizationStatus: AVAuthorizationStatus = .notDetermined
-
-    let captureSession = AVCaptureSession()
-    private var videoDeviceInput: AVCaptureDeviceInput?
-
-    override init() {
-        super.init()
-        checkPermission()
-    }
-
-    func checkPermission() {
-        authorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
-        isAuthorized = authorizationStatus == .authorized
-
-        if isAuthorized { setupCamera() }
-    }
-
-    func requestPermission() {
-        guard authorizationStatus == .notDetermined else {
-            return
-        }
-
-        AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-            DispatchQueue.main.async {
-                self?.authorizationStatus = granted ? .authorized : .denied
-                self?.isAuthorized = granted
-
-                if granted { self?.setupCamera() }
-            }
-        }
-    }
-
-    private func setupCamera() {
-        captureSession.beginConfiguration()
-
-        if captureSession.canSetSessionPreset(.medium) {
-            captureSession.sessionPreset = .medium
-        }
-
-        guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
-              let videoDeviceInput = try? AVCaptureDeviceInput(device: videoDevice),
-              captureSession.canAddInput(videoDeviceInput)
-        else {
-            captureSession.commitConfiguration()
-            return
-        }
-
-        captureSession.addInput(videoDeviceInput)
-        self.videoDeviceInput = videoDeviceInput
-
-        captureSession.commitConfiguration()
-
-        DispatchQueue.global(qos: .background).async {
-            self.captureSession.startRunning()
-        }
-    }
-
-    deinit {
-        captureSession.stopRunning()
+final class PreviewVideoView: NSView {
+    let preview = AVCaptureVideoPreviewLayer()
+    // 预览图层随布局调整尺寸，并完整保留摄像头画面比例，喵~
+    override func layout() {
+        super.layout()
+        preview.frame = bounds
     }
 }
 
 struct CameraPreviewView: NSViewRepresentable {
     let captureSession: AVCaptureSession
-
-    func makeNSView(context _: Context) -> NSView {
-        let view = NSView()
-
-        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.videoGravity = .resizeAspectFill
-
-        view.layer = previewLayer
+    // 将预览图层接入现有采集会话，不创建额外摄像头会话，喵~
+    func makeNSView(context: Context) -> PreviewVideoView {
+        let view = PreviewVideoView()
         view.wantsLayer = true
-
+        view.preview.session = captureSession
+        view.preview.videoGravity = .resizeAspect
+        view.layer?.addSublayer(view.preview)
         return view
     }
-
-    func updateNSView(_ nsView: NSView, context _: Context) {
-        if let layer = nsView.layer as? AVCaptureVideoPreviewLayer {
-            layer.session = captureSession
-        }
+    // 会话更新时同步图层引用，喵~
+    func updateNSView(_ view: PreviewVideoView, context: Context) {
+        if view.preview.session !== captureSession { view.preview.session = captureSession }
     }
+    // 退出预览时解除图层与会话的连接，喵~
+    static func dismantleNSView(_ view: PreviewVideoView, coordinator: ()) { view.preview.session = nil }
 }
 
-struct SetupRecordingsView: View {
-    @StateObject var vm = SentryConfigurationManager.shared
-    @StateObject private var cameraManager = CameraManager()
+enum PreviewMode: String, Identifiable { case guarding, warning; var id: String { rawValue } }
 
+final class PreviewCamera: ObservableObject {
+    let pipeline = CapturePipeline()
+    @Published var issue: String?
+    // 预览只发布采集故障，不启用任何录像事件，喵~
+    init() { pipeline.onCameraIssue = { [weak self] text in self?.issue = text } }
+}
+
+struct DesktopPreview: View {
+    let mode: PreviewMode
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var camera = PreviewCamera()
+    @ObservedObject private var sentry = Sentry.shared
     var body: some View {
-        FormView(title: "Setup Recordings", leftBottom: {
-            Button("Open Saved Clips") {
-                try? FileManager.default.createDirectory(
-                    atPath: videoClipDir.path,
-                    withIntermediateDirectories: true
-                )
-                // select the directory
-                NSWorkspace.shared.selectFile(
-                    nil,
-                    inFileViewerRootedAtPath: videoClipDir.path
-                )
+        VStack(spacing: 0) {
+            HStack {
+                Text("界面预览 · 底部为系统解锁区").font(.headline)
+                Spacer()
+                Button("关闭") { dismiss() }.keyboardShortcut(.cancelAction)
+            }.padding(16)
+            ZStack(alignment: .bottom) {
+                Color(white: 0.13)
+                Text("此区域在真实锁屏时完全透明，显示 macOS 原生解锁界面")
+                    .font(.callout).foregroundStyle(.secondary).padding(.bottom, 80)
+                SentryHUD(warning: mode == .warning, session: camera.pipeline.session,
+                          issue: camera.issue, isPreview: true)
             }
-        }) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("You can enable camera recording when Sentry is activated.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Divider()
-                Toggle(isOn: $vm.cfg.sentryRecordingEnabled) {
-                    Text("Enable Camera Recording")
-                }
-
-                if cameraManager.isAuthorized {
-                    CameraPreviewView(captureSession: cameraManager.captureSession)
-                        .background(.black)
-                        .frame(height: 150)
-                        .cornerRadius(8)
-                } else {
-                    Rectangle()
-                        .foregroundStyle(.black)
-                        .frame(height: 150)
-                        .overlay {
-                            VStack {
-                                Image(systemName: "camera.fill")
-                                    .font(.largeTitle)
-                                    .foregroundColor(.white)
-                                Text(cameraManager.authorizationStatus == .denied ? "Camera Access Denied" : "Requesting Camera Access...")
-                                    .foregroundColor(.white)
-                                    .font(.caption)
-                            }
-                        }
-                        .cornerRadius(8)
-                }
-                Text("Please remember to respect the privacy of others.")
-                    .underline()
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onAppear { cameraManager.requestPermission() }
+        .frame(width: 1000, height: 720)
+        .onAppear {
+            if mode == .warning { camera.pipeline.start(detectionEnabled: false) }
+        }
+        .onDisappear { camera.pipeline.stop() }
+        .onReceive(sentry.$isMonitoring) { if $0 { dismiss() } }
     }
-}
-
-#Preview {
-    SetupRecordingsView()
 }

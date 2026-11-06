@@ -1,48 +1,16 @@
-//
-//  SetupAlarmsView.swift
-//  Sentry
-//
-//  Created by 秋星桥 on 5/24/25.
-//
-
 import SwiftUI
 
 struct SetupAlarmsView: View {
     @StateObject var vm = SentryConfigurationManager.shared
-
     var body: some View {
-        FormView(title: "Setup Alarm Triggers", leftBottom: {
-            Button("Learn More - Disable Auto Sleep") {
-                NSWorkspace.shared.open(URL(string: "https://github.com/Lakr233/Sentry?tab=readme-ov-file#system-requirements")!)
+        FormView(title: "Setup Alarm Triggers", leftBottom: {}) {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("检测人员靠近", isOn: $vm.cfg.sentryTriggersHumanEnabled)
+                Toggle("Closing Lid", isOn: $vm.cfg.sentryTriggersLidEnabled)
+                Toggle("Disconnected from Internet", isOn: $vm.cfg.sentryTriggersInternetEnabled)
+                Toggle("Disconnected from Power Adapter", isOn: $vm.cfg.sentryTriggersPowerEnabled)
+                Text("接电时保持亮屏，电池供电遵循系统休眠。合盖或主动睡眠时暂停。")
             }
-        }) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Alarm triggers are used to fire the alarm when certain conditions are met.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Divider()
-                Toggle(isOn: $vm.cfg.sentryTriggersLidEnabled) {
-                    Text("Closing Lid")
-                }
-                Toggle(isOn: $vm.cfg.sentryTriggersInternetEnabled) {
-                    Text("Disconnected from Internet")
-                }
-                Toggle(isOn: $vm.cfg.sentryTriggersPowerEnabled) {
-                    Text("Disconnected from Power Adapter")
-                }
-                Divider()
-                if vm.sleepHoldServiceIdentifier.isEmpty {
-                    Text("Note that you may need to disable Mac's automatic sleep feature for these triggers to work effectively.")
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text("Sleep hold service is enabled. Your Mac wont sleep automatically.")
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-}
-
-#Preview {
-    SetupAlarmsView()
 }

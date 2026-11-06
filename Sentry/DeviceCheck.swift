@@ -13,22 +13,12 @@ import IOKit.pwr_mgt
 import SystemConfiguration
 
 enum DeviceCheck {
+    // 以类型安全的会话快照补充锁屏通知，缺少会话信息时保留未知状态，喵~
     static func isMacLocked() -> Bool? {
-        let session = CGSessionCopyCurrentDictionary()
-        guard let sessionDict = session else { return false }
-        let screenLockedKey = "CGSSessionScreenIsLocked" as CFString
-        let screenLockedValue = CFDictionaryGetValue(sessionDict, Unmanaged.passUnretained(screenLockedKey).toOpaque())
-        if let value = screenLockedValue {
-            let isLocked = CFBooleanGetValue(Unmanaged.fromOpaque(value).takeUnretainedValue())
-            return isLocked
-        }
-        let loginDoneKey = "kCGSessionLoginDoneKey" as CFString
-        let loginDoneValue = CFDictionaryGetValue(sessionDict, Unmanaged.passUnretained(loginDoneKey).toOpaque())
-        if let value = loginDoneValue {
-            let isLoginDone = CFBooleanGetValue(Unmanaged.fromOpaque(value).takeUnretainedValue())
-            return !isLoginDone
-        }
-        return nil
+        guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return nil }
+        if let onConsole = session[kCGSessionOnConsoleKey as String] as? Bool, !onConsole { return false }
+        if let locked = session["CGSSessionScreenIsLocked"] as? Bool { return locked }
+        return (session[kCGSessionLoginDoneKey as String] as? Bool).map { !$0 }
     }
 
     static func isMacLidClosed() -> Bool? {
