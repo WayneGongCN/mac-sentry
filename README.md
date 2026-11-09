@@ -60,6 +60,6 @@ python3 -m http.server 4317 --directory website
 
 Google Search Console 使用官网的 URL 前缀属性，由首页的 `google-site-verification` 标签验证所有权，站点地图为 `/sitemap.xml`。更换域名时为新属性重新验证。
 
-生产官网使用 GA4 统计页面访问和下载链接点击，标签位于 `website/app.js`，只在生产域名启用。更换域名或 GA4 数据流时，同步更新域名和测量 ID。
+生产官网使用 GA4 统计页面访问和下载按钮点击（`download_click`），标签位于 `website/app.js`，只在生产域名启用。更换域名或 GA4 数据流时，同步更新域名和测量 ID。
 
 手动部署时，在仓库根目录运行 `vercel link` 关联上述项目，再运行 `vercel --prod`。根目录的 `.vercelignore` 仅上传官网文件。部署自己的副本时，同样将 Vercel 项目根目录设置为 `website`。`.vercel` 登录与项目关联信息不提交到仓库。

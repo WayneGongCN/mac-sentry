@@ -48,4 +48,11 @@ if (window.location.origin === "https://mac-sentry.vercel.app") {
   analyticsScript.async = true;
   analyticsScript.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
   document.head.append(analyticsScript);
+
+  // 记录下载按钮点击，喵~
+  document.querySelectorAll("[data-download-cta]").forEach((link) => {
+    link.addEventListener("click", () => {
+      window.gtag("event", "download_click", { link_url: link.href });
+    });
+  });
 }
