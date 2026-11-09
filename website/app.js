@@ -29,3 +29,23 @@ function selectPreview(mode) {
 document.querySelectorAll("[data-mode]").forEach((button) => {
   button.addEventListener("click", () => selectPreview(button.dataset.mode));
 });
+
+if (window.location.origin === "https://mac-sentry.vercel.app") {
+  const measurementId = "G-1B61MR7V7V";
+  window.dataLayer = window.dataLayer || [];
+
+  // 在 Google 标签加载前排队记录官网访问，喵~
+  window.gtag = function gtag() {
+    window.dataLayer.push(arguments);
+  };
+  window.gtag("js", new Date());
+  window.gtag("config", measurementId, {
+    allow_google_signals: false,
+    allow_ad_personalization_signals: false,
+  });
+
+  const analyticsScript = document.createElement("script");
+  analyticsScript.async = true;
+  analyticsScript.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
+  document.head.append(analyticsScript);
+}
