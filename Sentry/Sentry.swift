@@ -24,6 +24,8 @@ final class Sentry: NSObject, ObservableObject {
     var configuration = SentryConfiguration()
     private var presence = FacePresence()
     private let overlay = SentryOverlay()
+    private let wallpaper = WallpaperPlayback()
+    private let nativeWallpaper = NativeWallpaperBridge()
     private var lockState = LockState()
     private var powerAssertion: IOPMAssertionID = 0
     private var timer: Timer?
@@ -46,6 +48,7 @@ final class Sentry: NSObject, ObservableObject {
     override init() {
         automaticEnabled = UserDefaults.standard.object(forKey: "automaticEnabled") as? Bool ?? true
         super.init()
+        capture.onFrame = { [weak nativeWallpaper] sample in nativeWallpaper?.offer(sample) }
         capture.onDetection = { [weak self] confidence, time in self?.accept(confidence: confidence, at: time) }
         capture.onCameraIssue = { [weak self] message in
             guard let self, self.isMonitoring else { return }
@@ -53,6 +56,7 @@ final class Sentry: NSObject, ObservableObject {
             self.presence.reset()
             self.capture.endEvent()
             self.refreshAlarm()
+            self.updateNativeWallpaper()
         }
         capture.onRecordingState = { [weak self] state in self?.recordingState = state }
     }
@@ -61,10 +65,7 @@ final class Sentry: NSObject, ObservableObject {
     func launch() {
         guard timer == nil else { return }
         SentryMediaStore.shared.removeUnusedFiles(keeping: SentryConfigurationManager.shared.cfg.mediaReferences)
-        observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
-                                                                object: nil, queue: .main) { [weak self] _ in
-            self?.refreshOverlay()
-        })
+        nativeWallpaper.cleanStaleSession()
         let center = NSWorkspace.shared.notificationCenter
         observers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             self?.isSleeping = true
@@ -130,9 +131,10 @@ final class Sentry: NSObject, ObservableObject {
         }
         checkDeviceTriggers()
         refreshAlarm()
+        updateNativeWallpaper()
     }
 
-    // 每次锁屏以当前配置创建被动展示窗口和摄像头会话，喵~
+    // 每次锁屏以当前配置启用系统壁纸交接和摄像头会话，喵~
     private func run() {
         configuration = SentryConfigurationManager.shared.cfg
         media = SentryMediaStore.shared.load(configuration)
@@ -145,27 +147,32 @@ final class Sentry: NSObject, ObservableObject {
         lastNetwork = DeviceCheck.isConnectedToWirelessNetwork()
         lastPower = DeviceCheck.isConnectedToPower()
         lastEvent = "本次守卫开始于 \(Date().formatted(date: .omitted, time: .standard))"
-        refreshOverlay()
+        nativeWallpaper.begin(configuration: configuration, media: media)
         setPowerHold(DeviceCheck.isConnectedToPower())
         capture.start(detectionEnabled: configuration.sentryTriggersHumanEnabled, useOwnerReference: true)
     }
 
-    // 显示器变化时只重建展示窗口，检测、告警、播放器与录像继续运行，喵~
-    private func refreshOverlay() {
-        guard isMonitoring, !isSleeping, !isDisplaySleeping, !isTerminating else { return }
-        overlay.present(on: NSScreen.screens) { reservesUnlockArea in
-            AnyView(SentryView(sentry: self, reservesUnlockArea: reservesUnlockArea))
-        }
+    // 仅向系统壁纸扩展公布当前守卫与告警状态，喵~
+    private func updateNativeWallpaper() {
+        guard isMonitoring else { return }
+        nativeWallpaper.update(alarm: isAlrming, camera: cameraIssue == nil)
+    }
+
+    // 桌面自检窗口使用与设置预览相同的素材播放器，喵~
+    private func refreshWallpaper() {
+        wallpaper.show(overlay.isPresented ? (isAlrming ? media.alarmImage : media.guardingImage) : nil)
     }
 
     // 成功解锁或暂停时释放窗口和电源占用，并等待录像自行收尾，喵~
     func stop(reason: String = "手动停止") {
         let hadSession = isMonitoring || overlay.isPresented
+        nativeWallpaper.end()
+        wallpaper.show(nil)
         overlay.dismiss()
         capture.stop()
         setPowerHold(false)
         isMonitoring = false
-        if hadSession { logger.notice("守卫结束：\(reason, privacy: .public)，顶层窗口已拆除") }
+        if hadSession { logger.notice("守卫结束：\(reason, privacy: .public)，壁纸会话已清理") }
         isAlrming = false
         deviceAlarm = false
         presence.reset()
@@ -199,7 +206,10 @@ final class Sentry: NSObject, ObservableObject {
             for time in [0.0, 0.34, 0.68] { presence.ingest(confidence: 0.9, at: time) }
         }
         refreshAlarm()
-        refreshOverlay()
+        overlay.present(on: screens) {
+            SentryView(sentry: self, wallpaper: wallpaper)
+        }
+        refreshWallpaper()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
             let numbers = overlay.windowNumbers
             let frames = overlay.windowFrames
@@ -210,7 +220,6 @@ final class Sentry: NSObject, ObservableObject {
             let displays: [[String: Any]] = screens.enumerated().map { index, screen in
                 ["display": screen.localizedName, "x": screen.frame.minX, "y": screen.frame.minY,
                  "width": screen.frame.width, "height": screen.frame.height,
-                 "unlockAreaFraction": index == 0 ? 0.30 : 0,
                  "windowNumber": numbers.indices.contains(index) ? numbers[index] : 0]
             }
             presence.reset()
@@ -268,13 +277,16 @@ final class Sentry: NSObject, ObservableObject {
     // 合格人脸消失后恢复守卫，设备触发告警保持到解锁，喵~
     private func refreshAlarm() {
         let active = deviceAlarm || presence.isActive
-        if active && !isAlrming { fireOptionalActions() }
-        if !active && isAlrming {
+        guard active != isAlrming else { return }
+        if active { fireOptionalActions() }
+        else {
             player?.stop()
             player = nil
             capture.endEvent()
         }
         isAlrming = active
+        updateNativeWallpaper()
+        refreshWallpaper()
     }
 
     // 保留上游的合盖、断网、拔电源三个可选触发条件，喵~

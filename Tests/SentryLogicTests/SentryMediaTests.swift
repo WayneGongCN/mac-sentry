@@ -21,7 +21,8 @@ final class SentryMediaTests: XCTestCase {
         try FileManager.default.removeItem(at: sound)
         let restored = try JSONDecoder().decode(SentryConfiguration.self, from: JSONEncoder().encode(config))
         let media = SentryMediaStore(directory: store.directory).load(restored)
-        XCTAssertEqual(media.guardingImage?.size, NSSize(width: 8, height: 4))
+        XCTAssertEqual(media.guardingImage?.poster.size, NSSize(width: 8, height: 4))
+        XCTAssertNil(media.guardingImage?.animationURL)
         XCTAssertNotNil(media.alarmImage)
         XCTAssertEqual(media.alarmSound?.lastPathComponent, config.sentryAlarmSound)
         XCTAssertTrue(media.issues.isEmpty)
@@ -31,12 +32,40 @@ final class SentryMediaTests: XCTestCase {
     func testSupportedImageFormats() throws {
         let root = try temporaryDirectory()
         let store = SentryMediaStore(directory: root.appendingPathComponent("Media"))
-        for type in SentryMediaKind.image.contentTypes {
+        for type in [UTType.png, .jpeg, .heic, .gif] {
             let source = try writeImage(in: root, type: type)
             var config = SentryConfiguration()
             config.sentryGuardingImage = try store.importFile(source, kind: .image)
             XCTAssertNotNil(store.load(config).guardingImage, type.identifier)
             XCTAssertTrue(store.load(config).issues.isEmpty, type.identifier)
+        }
+    }
+
+    // GIF 与 APNG 保留多帧，导入副本可播放并循环到首帧，喵~
+    func testImportedAnimatedImagesLoop() throws {
+        let root = try temporaryDirectory()
+        let store = SentryMediaStore(directory: root.appendingPathComponent("Media"))
+        for type in [UTType.gif, .png] {
+            let url = try writeAnimation(in: root, type: type)
+            var config = SentryConfiguration()
+            config.sentryAlarmImage = try store.importFile(url, kind: .image)
+            try FileManager.default.removeItem(at: url)
+            let media = store.load(config)
+            XCTAssertTrue(media.issues.isEmpty, type.identifier)
+            let imported = try XCTUnwrap(media.alarmImage?.animationURL)
+            let looped = expectation(description: "\(type.identifier) 播放到下一轮")
+            var frames: [Int] = []
+            let status = CGAnimateImageAtURLWithBlock(imported as CFURL,
+                [kCGImageAnimationLoopCount: Double.infinity] as CFDictionary) { index, _, stop in
+                frames.append(index)
+                if frames.count == 6 {
+                    stop.pointee = true
+                    looped.fulfill()
+                }
+            }
+            XCTAssertEqual(status, noErr)
+            wait(for: [looped], timeout: 3)
+            XCTAssertEqual(frames, [0, 1, 0, 1, 0, 1])
         }
     }
 
@@ -64,7 +93,8 @@ final class SentryMediaTests: XCTestCase {
         let store = SentryMediaStore(directory: root.appendingPathComponent("Media"))
         let source = try writeImage(in: root, type: .png)
         let reference = try store.importFile(source, kind: .image)
-        for (name, kind) in [("bad.png", SentryMediaKind.image), ("bad.wav", .sound), ("unsupported.txt", .image)] {
+        for (name, kind) in [("bad.png", SentryMediaKind.image), ("bad.gif", .image), ("bad.apng", .image),
+                             ("bad.wav", .sound), ("unsupported.txt", .image)] {
             let bad = root.appendingPathComponent(name)
             try Data("invalid media".utf8).write(to: bad)
             XCTAssertThrowsError(try store.importFile(bad, kind: kind))
@@ -116,6 +146,20 @@ final class SentryMediaTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
     }
 
+    // 横屏与竖屏共用右上角布局，画中画完整保留不同摄像头比例，喵~
+    func testWallpaperCameraUsesSharedInsetsAndAspectFit() {
+        for size in [CGSize(width: 1800, height: 1169), CGSize(width: 1440, height: 2560)] {
+            let box = WallpaperLayout.camera(in: size)
+            XCTAssertEqual(size.width - box.maxX, 24)
+            XCTAssertEqual(box.minY, 24)
+            XCTAssertEqual(box.size, CGSize(width: 320, height: 180))
+            let frame = WallpaperLayout.image(CGSize(width: 640, height: 480), in: box, fill: false)
+            XCTAssertEqual(frame.size, CGSize(width: 240, height: 180))
+            XCTAssertEqual(frame.midX, box.midX)
+            XCTAssertEqual(frame.midY, box.midY)
+        }
+    }
+
     // 每项测试使用独立目录，结束后删除生成的非个人素材，喵~
     private func temporaryDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -135,6 +179,26 @@ final class SentryMediaTests: XCTestCase {
         CGImageDestinationAddImage(destination, try XCTUnwrap(context.makeImage()), nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         return source
+    }
+
+    // 生成带帧延时的双色动图，覆盖 APNG 文件扩展名与两种容器的真实解码，喵~
+    private func writeAnimation(in directory: URL, type: UTType) throws -> URL {
+        let gif = type == .gif
+        let url = directory.appendingPathComponent(gif ? "source.gif" : "source.apng")
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(url as CFURL, type.identifier as CFString, 2, nil))
+        let dictionary = gif ? kCGImagePropertyGIFDictionary : kCGImagePropertyPNGDictionary
+        let loopCount = gif ? kCGImagePropertyGIFLoopCount : kCGImagePropertyAPNGLoopCount
+        let delay = gif ? kCGImagePropertyGIFDelayTime : kCGImagePropertyAPNGDelayTime
+        CGImageDestinationSetProperties(destination, [dictionary: [loopCount: 1]] as CFDictionary)
+        let context = try XCTUnwrap(CGContext(data: nil, width: 8, height: 4, bitsPerComponent: 8,
+            bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        for color in [NSColor.red, .blue] {
+            context.setFillColor(color.cgColor)
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 4))
+            CGImageDestinationAddImage(destination, try XCTUnwrap(context.makeImage()), [dictionary: [delay: 0.06]] as CFDictionary)
+        }
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return url
     }
 
     // 生成短暂的无声音频以覆盖 M4A 解码路径，喵~

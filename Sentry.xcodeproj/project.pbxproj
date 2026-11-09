@@ -9,10 +9,54 @@
 /* Begin PBXBuildFile section */
 		50D001242DE0F18200BB8467 /* ColorfulX in Frameworks */ = {isa = PBXBuildFile; productRef = 50D001232DE0F18200BB8467 /* ColorfulX */; };
 		50D0FD7E2DE0EEAE00BB8467 /* SkyLightWindow in Frameworks */ = {isa = PBXBuildFile; productRef = 50D0FD7D2DE0EEAE00BB8467 /* SkyLightWindow */; };
+
+		A931B200000000000000000B /* SentryWallpaper.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = A931B2000000000000000005; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A931B200000000000000000F /* WallpaperSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A931B200000000000000000E; };
+		A931B2000000000000000010 /* WallpaperSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A931B200000000000000000E; };
+		A931B2000000000000000012 /* WallpaperImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A931B2000000000000000011; };
+		A931B2000000000000000014 /* icon-256.png in Resources */ = {isa = PBXBuildFile; fileRef = A931B2000000000000000013; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+
+		A931B200000000000000000C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 50D0FD5A2DE0ED6000BB8467 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A931B2000000000000000001;
+			remoteInfo = SentryWallpaper;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+
+		A931B200000000000000000A /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (A931B200000000000000000B, );
+			name = "Embed ExtensionKit Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+
+		A931B200000000000000000D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A931B2000000000000000001;
+			targetProxy = A931B200000000000000000C;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXFileReference section */
 		50D0FD622DE0ED6000BB8467 /* Sentry.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacSentry.app; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		A931B2000000000000000005 /* SentryWallpaper.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = SentryWallpaper.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A931B200000000000000000E /* WallpaperSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WallpaperSession.swift; path = WallpaperShared/WallpaperSession.swift; sourceTree = SOURCE_ROOT; };
+		A931B2000000000000000011 /* WallpaperImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WallpaperImage.swift; path = Sentry/Logic/WallpaperImage.swift; sourceTree = SOURCE_ROOT; };
+		A931B2000000000000000013 /* icon-256.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "icon-256.png"; path = "Sentry/Assets.xcassets/AppIcon.appiconset/icon-256.png"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -23,6 +67,12 @@
 			);
 			target = 50D0FD612DE0ED6000BB8467 /* Sentry */;
 		};
+
+		A931B2000000000000000007 /* Exceptions for SentryWallpaper */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (Info.plist, );
+			target = A931B2000000000000000001;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +82,13 @@
 				50D001502DE0FDDE00BB8467 /* Exceptions for "Sentry" folder in "Sentry" target */,
 			);
 			path = Sentry;
+			sourceTree = "<group>";
+		};
+
+		A931B2000000000000000006 /* SentryWallpaper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (A931B2000000000000000007, );
+			path = SentryWallpaper;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -53,6 +110,10 @@
 			isa = PBXGroup;
 			children = (
 				50D0FD642DE0ED6000BB8467 /* Sentry */,
+				A931B2000000000000000006 /* SentryWallpaper */,
+				A931B200000000000000000E /* WallpaperSession.swift */,
+				A931B2000000000000000011 /* WallpaperImage.swift */,
+				A931B2000000000000000013 /* icon-256.png */,
 				50D0FD632DE0ED6000BB8467 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,6 +122,7 @@
 			isa = PBXGroup;
 			children = (
 				50D0FD622DE0ED6000BB8467 /* Sentry.app */,
+				A931B2000000000000000005 /* SentryWallpaper.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -75,10 +137,12 @@
 				50D0FD5E2DE0ED6000BB8467 /* Sources */,
 				50D0FD5F2DE0ED6000BB8467 /* Frameworks */,
 				50D0FD602DE0ED6000BB8467 /* Resources */,
+				A931B200000000000000000A /* Embed ExtensionKit Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A931B200000000000000000D,
 			);
 			fileSystemSynchronizedGroups = (
 				50D0FD642DE0ED6000BB8467 /* Sentry */,
@@ -91,6 +155,20 @@
 			productName = Sentry;
 			productReference = 50D0FD622DE0ED6000BB8467 /* Sentry.app */;
 			productType = "com.apple.product-type.application";
+		};
+
+		A931B2000000000000000001 /* SentryWallpaper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A931B2000000000000000002;
+			buildPhases = (A931B2000000000000000008, A931B2000000000000000009, );
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (A931B2000000000000000006, );
+			name = SentryWallpaper;
+			packageProductDependencies = ();
+			productName = SentryWallpaper;
+			productReference = A931B2000000000000000005;
+			productType = "com.apple.product-type.extensionkit-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -125,6 +203,7 @@
 			projectRoot = "";
 			targets = (
 				50D0FD612DE0ED6000BB8467 /* Sentry */,
+				A931B2000000000000000001 /* SentryWallpaper */,
 			);
 		};
 /* End PBXProject section */
@@ -137,6 +216,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
+		A931B2000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A931B2000000000000000014, );
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -144,7 +230,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A931B200000000000000000F /* WallpaperSession.swift in Sources */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		A931B2000000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A931B2000000000000000012, A931B2000000000000000010, );
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -281,7 +375,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -315,7 +409,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -340,6 +434,52 @@
 			};
 			name = Release;
 		};
+
+		A931B2000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SentryWallpaper/SentryWallpaper.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 4;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SentryWallpaper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Mac 哨兵锁屏壁纸";
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.waynegong.MacSentry.wallpaper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "SentryWallpaper/WallpaperExtension-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+
+		A931B2000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SentryWallpaper/SentryWallpaper.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 4;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SentryWallpaper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Mac 哨兵锁屏壁纸";
+				MACOSX_DEPLOYMENT_TARGET = 15.4;
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.waynegong.MacSentry.wallpaper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "SentryWallpaper/WallpaperExtension-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -358,6 +498,13 @@
 				50D0FD6F2DE0ED6200BB8467 /* Debug */,
 				50D0FD702DE0ED6200BB8467 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+
+		A931B2000000000000000002 /* Build configuration list for SentryWallpaper */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A931B2000000000000000003, A931B2000000000000000004, );
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};

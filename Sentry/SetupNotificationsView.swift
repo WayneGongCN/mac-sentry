@@ -14,6 +14,7 @@ struct SetupNotificationsView: View {
     @State private var previewStop: DispatchWorkItem?
     @State private var previewError: String?
     @State private var importError: String?
+    @State private var wallpaperSetupError: String?
     @State private var media = SentryMedia()
     @State private var imagePreview: PreviewMode?
 
@@ -21,14 +22,28 @@ struct SetupNotificationsView: View {
         FormView(title: "画面、声音与通知") {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("图片与声音从下一次锁屏生效，预览使用当前选择。守卫状态不播放声音。")
+                    Text("可选 PNG、JPEG、HEIC、GIF 或 APNG。从下一次锁屏生效，预览使用当前选择。")
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if NativeWallpaper.supported {
+                        Button("在系统设置启用锁屏壁纸…", action: enableWallpaper)
+                        Text("启用前会保存每块屏幕当前的壁纸。请在系统「墙纸」中为所需显示器选择「Mac 哨兵锁屏壁纸」。缺少有效图片时显示原壁纸副本。")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let wallpaperSetupError {
+                            Text(wallpaperSetupError).font(.caption).foregroundStyle(.orange)
+                        }
+                    } else {
+                        Text("当前 macOS 构建使用系统原生锁屏，守卫检测仍可运行。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     imageOption("守卫图片", reference: $vm.cfg.sentryGuardingImage, image: media.guardingImage,
-                                mode: .guarding, defaultName: "内置机械眼")
+                                mode: .guarding)
                     Divider()
                     imageOption("告警图片", reference: $vm.cfg.sentryAlarmImage, image: media.alarmImage,
-                                mode: .warning, defaultName: "实时摄像头画面")
+                                mode: .warning)
+                    Text("告警时，实时摄像头画面显示在右上角。")
+                        .font(.caption).foregroundStyle(.secondary)
                     ForEach(media.issues, id: \.self) { message in
                         Text(message).font(.caption).foregroundStyle(.orange)
                     }
@@ -125,17 +140,37 @@ struct SetupNotificationsView: View {
         .sheet(item: $imagePreview) { mode in DesktopPreview(mode: mode, configuration: vm.cfg) }
     }
 
+    // 准备可回退的壁纸后打开系统选择页，由用户选择使用的屏幕，喵~
+    private func enableWallpaper() {
+        do {
+            try NativeWallpaper.prepareFallbacks { screen, original in
+                let panel = NSOpenPanel()
+                panel.title = "读取当前系统壁纸"
+                panel.message = "请选中「\(screen.localizedName)」当前的壁纸文件「\(original.lastPathComponent)」。"
+                panel.prompt = "允许读取"
+                panel.directoryURL = original.deletingLastPathComponent()
+                panel.canChooseDirectories = false
+                panel.allowsMultipleSelection = false
+                return panel.runModal() == .OK ? panel.url : nil
+            }
+            wallpaperSetupError = nil
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            }
+        } catch { wallpaperSetupError = error.localizedDescription }
+    }
+
     // 显示每种状态的素材缩略图、独立导入和恢复入口，喵~
-    private func imageOption(_ title: String, reference: Binding<String?>, image: NSImage?,
-                             mode: PreviewMode, defaultName: String) -> some View {
+    private func imageOption(_ title: String, reference: Binding<String?>, image: SentryImage?,
+                             mode: PreviewMode) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 if let image {
-                    Image(nsImage: image).resizable().scaledToFit().frame(width: 64, height: 48)
+                    Image(nsImage: image.poster).resizable().scaledToFit().frame(width: 64, height: 48)
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.headline)
-                    Text(reference.wrappedValue == nil ? defaultName : "自定义图片")
+                    Text(image == nil ? "系统锁屏壁纸" : "自定义图片")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

@@ -34,17 +34,16 @@ enum LocalValidation {
         app.setActivationPolicy(.accessory)
         var windows: [NSWindow] = []
         let media = SentryMediaStore.shared.load(SentryConfigurationManager.shared.cfg)
-        let layouts: [(CGSize, CGFloat)] = [(CGSize(width: 1440, height: 900), 0.30),
-                                           (CGSize(width: 720, height: 1280), 0)]
-        for (size, unlockArea) in layouts {
+        let layouts = [CGSize(width: 1440, height: 900), CGSize(width: 720, height: 1280)]
+        for size in layouts {
             for warning in [false, true] {
+                let wallpaper = WallpaperPlayback()
+                let image = warning ? media.alarmImage : media.guardingImage
+                wallpaper.show(image.map { SentryImage(poster: $0.poster, animationURL: nil) })
                 let view = NSHostingView(rootView: ZStack(alignment: .bottom) {
                     Color(white: 0.13)
-                    if unlockArea > 0 {
-                        Text("macOS 原生解锁区域").font(.system(size: 18)).foregroundStyle(.gray).padding(.bottom, 110)
-                    }
-                    SentryHUD(warning: warning, session: AVCaptureSession(), isPreview: true, previewCamera: false,
-                              media: media, unlockAreaFraction: unlockArea)
+                    LockScreenWallpaper(wallpaper: wallpaper)
+                    PreviewUnlockLabel()
                 })
                 view.frame = NSRect(origin: .zero, size: size)
                 let window = NSWindow(contentRect: view.frame, styleMask: .borderless, backing: .buffered, defer: false)

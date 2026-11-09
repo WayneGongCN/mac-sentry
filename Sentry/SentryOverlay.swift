@@ -1,5 +1,4 @@
 import AppKit
-import SkyLightWindow
 import SwiftUI
 
 final class SentryOverlay {
@@ -9,13 +8,14 @@ final class SentryOverlay {
     var windowNumbers: [Int] { panels.map(\.windowNumber) }
     var windowFrames: [CGRect] { panels.map(\.frame) }
 
-    // 每屏建立独立的被动窗口，仅系统主显示器预留解锁区域，喵~
-    func present(on screens: [NSScreen], content: (_ reservesUnlockArea: Bool) -> AnyView) {
+    // 桌面回归自检为每屏建立被动窗口，实际锁屏由系统壁纸扩展负责，喵~
+    func present<Content: View>(on screens: [NSScreen], content: () -> Content) {
         dismiss()
-        for (index, screen) in screens.enumerated() {
+        for screen in screens {
             let window = PassiveSentryPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
-                                       backing: .buffered, defer: false)
-            window.title = "MacSentry 哨兵界面 · \(screen.localizedName)"
+                                           backing: .buffered, defer: false)
+            window.setFrame(screen.frame, display: false)
+            window.title = "MacSentry 壁纸 · \(screen.localizedName)"
             window.backgroundColor = .clear
             window.isOpaque = false
             window.hasShadow = false
@@ -23,17 +23,15 @@ final class SentryOverlay {
             window.hidesOnDeactivate = false
             window.ignoresMouseEvents = true
             window.animationBehavior = .none
-            window.canBecomeVisibleWithoutLogin = true
-            window.level = NSWindow.Level(rawValue: Int(Int32.max - 2))
+            window.level = .floating
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
-            window.contentView = NSHostingView(rootView: content(index == 0))
-            SkyLightOperator.shared.delegateWindow(window)
-            window.orderFrontRegardless()
+            window.contentView = NSHostingView(rootView: content())
             panels.append(window)
+            window.orderFrontRegardless()
         }
     }
 
-    // 先清空窗口画面，再拆除预览与窗口，重复调用也能清理残留画面，喵~
+    // 先隐藏全部画面，再拆除窗口及摄像头预览图层，喵~
     func dismiss() {
         for window in panels {
             window.alphaValue = 0
@@ -42,10 +40,8 @@ final class SentryOverlay {
         CATransaction.flush()
         for window in panels {
             window.contentView = nil
-            window.level = .normal
             window.close()
         }
         panels.removeAll()
     }
-
 }

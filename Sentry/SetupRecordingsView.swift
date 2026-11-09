@@ -35,8 +35,20 @@ enum PreviewMode: String, Identifiable { case guarding, warning; var id: String 
 final class PreviewCamera: ObservableObject {
     let pipeline = CapturePipeline()
     @Published var issue: String?
-    // 预览只发布采集故障，不启用任何录像事件，喵~
-    init() { pipeline.onCameraIssue = { [weak self] text in self?.issue = text } }
+    @Published private(set) var ready = false
+
+    // 首帧到达后才显示画中画，采集中断时隐藏，喵~
+    init() {
+        pipeline.onCameraIssue = { [weak self] text in
+            self?.issue = text
+            self?.ready = false
+        }
+        pipeline.onDetection = { [weak self] _, _ in
+            guard let self, !self.ready else { return }
+            self.issue = nil
+            self.ready = true
+        }
+    }
 }
 
 struct DesktopPreview: View {
@@ -44,29 +56,37 @@ struct DesktopPreview: View {
     var configuration = SentryConfigurationManager.shared.cfg
     @Environment(\.dismiss) private var dismiss
     @StateObject private var camera = PreviewCamera()
+    @StateObject private var wallpaper = WallpaperPlayback()
+    @State private var fallback: NSImage?
     @ObservedObject private var sentry = Sentry.shared
-    @State private var media = SentryMedia()
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("界面预览 · 底部为系统解锁区").font(.headline)
+                Text(mode == .warning ? "告警画面预览" : "守卫画面预览").font(.headline)
+                if let issue = camera.issue {
+                    Text(issue).font(.caption).foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("关闭") { dismiss() }.keyboardShortcut(.cancelAction)
             }.padding(16)
             ZStack(alignment: .bottom) {
                 Color(white: 0.13)
-                Text("此区域在真实锁屏时完全透明，显示 macOS 原生解锁界面")
-                    .font(.callout).foregroundStyle(.secondary).padding(.bottom, 80)
-                SentryHUD(warning: mode == .warning, session: camera.pipeline.session,
-                          issue: camera.issue, isPreview: true, media: media)
+                LockScreenWallpaper(wallpaper: wallpaper, camera: camera.ready ? camera.pipeline.session : nil,
+                                    fallback: fallback)
+                PreviewUnlockLabel()
             }
         }
         .frame(width: 1000, height: 720)
         .onAppear {
-            media = SentryMediaStore.shared.load(configuration)
-            if mode == .warning && media.alarmImage == nil { camera.pipeline.start(detectionEnabled: false) }
+            fallback = NativeWallpaper.previewFallback()
+            let media = SentryMediaStore.shared.load(configuration)
+            wallpaper.show(mode == .warning ? media.alarmImage : media.guardingImage)
+            if mode == .warning { camera.pipeline.start(detectionEnabled: false) }
         }
-        .onDisappear { camera.pipeline.stop() }
+        .onDisappear {
+            wallpaper.show(nil)
+            camera.pipeline.stop()
+        }
         .onReceive(sentry.$isMonitoring) { if $0 { dismiss() } }
     }
 }

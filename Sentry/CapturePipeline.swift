@@ -18,6 +18,7 @@ enum RecordingState: Equatable {
 
 final class CapturePipeline: NSObject {
     let session = AVCaptureSession()
+    var onFrame: ((CMSampleBuffer) -> Void)?
     var onDetection: ((Float, TimeInterval) -> Void)?
     var onCameraIssue: ((String?) -> Void)?
     var onRecordingState: ((RecordingState) -> Void)?
@@ -46,7 +47,10 @@ final class CapturePipeline: NSObject {
     init(segmentInterval: TimeInterval = 60) {
         self.segmentInterval = segmentInterval
         super.init()
-        detector.onFrame = { [weak self] sample in self?.enqueue(sample) }
+        detector.onFrame = { [weak self] sample in
+            self?.onFrame?(sample)
+            self?.enqueue(sample)
+        }
         detector.onResult = { [weak self] confidence, time in
             DispatchQueue.main.async { self?.onDetection?(confidence, time) }
         }

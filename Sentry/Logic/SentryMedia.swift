@@ -1,22 +1,23 @@
 import AppKit
 import AVFAudio
-import ImageIO
 import UniformTypeIdentifiers
 
 enum SentryMediaKind {
     case image, sound
 
+    static let apng = UTType(filenameExtension: "apng")
+
     var contentTypes: [UTType] {
         switch self {
-        case .image: return [.png, .jpeg, .heic]
+        case .image: return [.png, .jpeg, .heic, .gif] + [Self.apng].compactMap { $0 }
         case .sound: return [.mp3, .mpeg4Audio, .wav]
         }
     }
 }
 
 struct SentryMedia {
-    var guardingImage: NSImage?
-    var alarmImage: NSImage?
+    var guardingImage: SentryImage?
+    var alarmImage: SentryImage?
     var alarmSound = Bundle.main.url(forResource: "alarm", withExtension: "mp3")
     var issues: [String] = []
 
@@ -33,18 +34,20 @@ struct SentryMediaStore {
 
     // 在用户选择的文件访问范围内导入独立副本，解码失败时不留下无效素材，喵~
     func importFile(_ source: URL, kind: SentryMediaKind) throws -> String {
-        guard let type = UTType(filenameExtension: source.pathExtension), kind.contentTypes.contains(where: { type.conforms(to: $0) }) else {
+        let ext = source.pathExtension.lowercased()
+        let type = UTType(filenameExtension: ext)
+        guard let type, kind.contentTypes.contains(where: { type.conforms(to: $0) }) else {
             throw MediaError.unsupportedFormat
         }
         let accessing = source.startAccessingSecurityScopedResource()
         defer { if accessing { source.stopAccessingSecurityScopedResource() } }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let name = UUID().uuidString + "." + source.pathExtension.lowercased()
+        let name = UUID().uuidString + "." + ext
         let destination = directory.appendingPathComponent(name)
         do {
             try Data(contentsOf: source, options: .mappedIfSafe).write(to: destination, options: .atomic)
             switch kind {
-            case .image: _ = try image(at: destination)
+            case .image: _ = try SentryImage(contentsOf: destination)
             case .sound: try validateSound(at: destination)
             }
         } catch {
@@ -58,12 +61,12 @@ struct SentryMediaStore {
     func load(_ configuration: SentryConfiguration) -> SentryMedia {
         var media = SentryMedia()
         if let reference = configuration.sentryGuardingImage {
-            do { media.guardingImage = try image(at: storedURL(reference)) }
-            catch { media.reportIssue("守卫图片不可用，已使用内置机械眼。") }
+            do { media.guardingImage = try SentryImage(contentsOf: storedURL(reference)) }
+            catch { media.reportIssue("守卫图片不可用，已使用系统锁屏壁纸。") }
         }
         if let reference = configuration.sentryAlarmImage {
-            do { media.alarmImage = try image(at: storedURL(reference)) }
-            catch { media.reportIssue("告警图片不可用，已使用实时摄像头画面。") }
+            do { media.alarmImage = try SentryImage(contentsOf: storedURL(reference)) }
+            catch { media.reportIssue("告警图片不可用，已使用系统锁屏壁纸。") }
         }
         if let reference = configuration.sentryAlarmSound {
             do {
@@ -84,23 +87,10 @@ struct SentryMediaStore {
     }
 
     // 配置只能引用素材目录内的文件名，防止错误路径逃离应用管理范围，喵~
-    private func storedURL(_ reference: String) throws -> URL {
+    func storedURL(_ reference: String) throws -> URL {
         guard !reference.isEmpty, reference != ".", reference != "..",
               (reference as NSString).lastPathComponent == reference else { throw MediaError.invalidResource }
         return directory.appendingPathComponent(reference)
-    }
-
-    // 解码单张静态图片并应用方向信息，限制展示分辨率以控制多屏内存占用，喵~
-    private func image(at url: URL) throws -> NSImage {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              CGImageSourceGetCount(source) == 1, let type = CGImageSourceGetType(source),
-              SentryMediaKind.image.contentTypes.contains(where: { $0.identifier == type as String }),
-              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: 4096,
-              ] as CFDictionary) else { throw MediaError.invalidImage }
-        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
     }
 
     // 检查支持的音频是否能解码且包含有效时长，校验过程不播放声音，喵~
@@ -115,13 +105,12 @@ struct SentryMediaStore {
 }
 
 private enum MediaError: LocalizedError {
-    case unsupportedFormat, invalidResource, invalidImage, invalidSound
+    case unsupportedFormat, invalidResource, invalidSound
 
     var errorDescription: String? {
         switch self {
-        case .unsupportedFormat: return "请选择 PNG、JPEG、HEIC 图片或 MP3、M4A、WAV 声音文件。"
+        case .unsupportedFormat: return "请选择 PNG、JPEG、HEIC、GIF、APNG 图片或 MP3、M4A、WAV 声音文件。"
         case .invalidResource: return "素材引用无效，请重新选择文件。"
-        case .invalidImage: return "无法解码这张静态图片，请选择有效的 PNG、JPEG 或 HEIC 文件。"
         case .invalidSound: return "声音文件没有可播放的音频。"
         }
     }

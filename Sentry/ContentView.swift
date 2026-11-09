@@ -50,7 +50,7 @@ struct ContentView: View {
                     Button("画面、声音与通知设置") { notificationOptions = true }
                     Spacer()
                 }
-                Text("预览不录像、不播放告警音；未设置告警图片时会使用摄像头。主屏底部为系统解锁区，扩展屏铺满。")
+                Text("预览不录像，也不播放告警音。告警时，右上角显示实时摄像头画面。")
                     .font(.caption).foregroundStyle(.secondary)
                 DisclosureGroup("其他可选触发") {
                     VStack(alignment: .leading, spacing: 12) {
