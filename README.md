@@ -56,4 +56,6 @@ python3 -m http.server 4317 --directory website
 
 当前 Vercel 项目已连接本 GitHub 仓库，推送 `main` 自动部署官网。项目根目录为 `website`，Framework Preset 使用 Other，关闭安装与构建命令，输出目录为 `.`。
 
+生产首页的 canonical、分享卡片、站点名称和 `sitemap.xml` 都使用 `https://mac-sentry.vercel.app/`。更换域名时，同步更新 `website/index.html`、`website/robots.txt` 和 `website/sitemap.xml`。
+
 手动部署时，在仓库根目录运行 `vercel link` 关联上述项目，再运行 `vercel --prod`。根目录的 `.vercelignore` 仅上传官网文件。部署自己的副本时，同样将 Vercel 项目根目录设置为 `website`。`.vercel` 登录与项目关联信息不提交到仓库。
