@@ -59,7 +59,7 @@ struct ContentView: View {
                         Toggle("拔电源触发", isOn: $settings.cfg.sentryTriggersPowerEnabled)
                     }.padding(.top, 12)
                 }
-                Text("基于 Lakr233/Sentry 1.3.13 · 定制版 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0")")
+                Text("基于 Lakr233/Sentry 1.3.13 · 定制版 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2.0")")
                     .font(.caption).foregroundStyle(.tertiary)
             }.padding(28)
         }

@@ -2,11 +2,11 @@
 
 [官网](https://mac-sentry.vercel.app) · [下载最新版本](https://github.com/WayneGongCN/mac-sentry/releases/latest) · [GitHub 源码](https://github.com/WayneGongCN/mac-sentry) · [反馈问题](https://github.com/WayneGongCN/mac-sentry/issues)
 
-基于 [Lakr233/Sentry](https://github.com/Lakr233/Sentry) 1.3.13 的个人定制版，使用 SwiftUI、AVFoundation、Vision 与上游 SkyLightWindow。最新发布包为 1.1.0。下文的壁纸布局对应当前源码。保留原项目 MIT 许可及署名。
+基于 [Lakr233/Sentry](https://github.com/Lakr233/Sentry) 1.3.13 的个人定制版，使用 SwiftUI、AVFoundation 和 Vision。当前发布包为 1.2.0。保留原项目 MIT 许可及署名。
 
 ## 使用
 
-从 [GitHub Releases](https://github.com/WayneGongCN/mac-sentry/releases/latest) 下载 `MacSentry-v1.1.0-macos-arm64.zip` 并解压，可使用同页的 `SHA256SUMS.txt` 校验安装包。当前发布包采用 ad-hoc 本地签名，尚未经过 Apple 公证；首次打开可能需要在“系统设置 → 隐私与安全性”中确认。
+从 [GitHub Releases](https://github.com/WayneGongCN/mac-sentry/releases/latest) 下载 `MacSentry-v1.2.0-macos-arm64.zip` 并解压，可使用同页的 `SHA256SUMS.txt` 校验安装包。当前发布包采用 ad-hoc 本地签名，尚未经过 Apple 公证；首次打开可能需要在“系统设置 → 隐私与安全性”中确认。
 
 将 `MacSentry.app` 放进“应用程序”目录后打开，在设置窗口点击“授权摄像头”，开启“锁屏后自动守卫”。应用驻留菜单栏，关闭设置窗口后仍然工作。同一用户重复打开不同路径的定制版时，会唤起现有实例，避免重复守卫。原版 Sentry 与本应用拥有不同的 Bundle ID，验证定制版时请退出原版，避免两套锁屏界面同时显示。
 

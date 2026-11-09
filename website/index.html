@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090e13">
     <title>Mac 哨兵（Mac Sentry）— 开源 macOS 锁屏守卫与本地录像</title>
-    <meta name="description" content="Mac 哨兵是一款免费的开源 macOS 锁屏守卫。锁屏后用 Mac 摄像头在本机检测人脸，触发多屏警示并保存事件录像。下载 Apple Silicon 版，支持 macOS 13 及以上。">
+    <meta name="description" content="Mac 哨兵是一款免费的开源 macOS 锁屏守卫。锁屏后用 Mac 摄像头在本机检测人脸，触发告警并保存本地事件录像。下载 Apple Silicon 版，支持 macOS 13 及以上。">
     <meta name="robots" content="max-image-preview:large">
     <link rel="canonical" href="https://mac-sentry.vercel.app/">
     <meta name="google-site-verification" content="eYsxWjySciEsxiEG4SSBbKE7bfUw2b8333Xmwy-JADk">
@@ -14,14 +14,14 @@
     <meta property="og:site_name" content="Mac 哨兵">
     <meta property="og:locale" content="zh_CN">
     <meta property="og:title" content="Mac 哨兵（Mac Sentry）— 开源 macOS 锁屏守卫">
-    <meta property="og:description" content="锁屏后在本机检测人脸，触发多屏警示并保存事件录像。适用于 Apple Silicon 和 macOS 13 及以上。">
+    <meta property="og:description" content="锁屏后在本机检测人脸，触发告警并保存本地事件录像。适用于 Apple Silicon 和 macOS 13 及以上。">
     <meta property="og:url" content="https://mac-sentry.vercel.app/">
     <meta property="og:image" content="https://mac-sentry.vercel.app/assets/guarding.jpg">
     <meta property="og:image:width" content="1440">
     <meta property="og:image:height" content="900">
-    <meta property="og:image:alt" content="Mac 哨兵锁屏守卫界面，显示青色机械眼和系统解锁区域">
+    <meta property="og:image:alt" content="Mac 哨兵锁屏守卫预览，示例壁纸铺满屏幕">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image:alt" content="Mac 哨兵锁屏守卫界面，显示青色机械眼和系统解锁区域">
+    <meta name="twitter:image:alt" content="Mac 哨兵锁屏守卫预览，示例壁纸铺满屏幕">
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -53,19 +53,19 @@
     <main id="main">
       <section class="hero section-shell">
         <div class="hero-copy">
-          <a class="release-pill" href="https://github.com/WayneGongCN/mac-sentry/releases/tag/v1.1.0"><span class="status-dot"></span>v1.1.0 现已发布<span aria-hidden="true">↗</span></a>
+          <a class="release-pill" href="https://github.com/WayneGongCN/mac-sentry/releases/tag/v1.2.0"><span class="status-dot"></span>v1.2.0 现已发布<span aria-hidden="true">↗</span></a>
           <h1>Mac 哨兵<br><span>锁屏守卫</span></h1>
-          <p class="hero-description">离开座位后，Mac 哨兵用摄像头在本机检测人脸。确认后在所有显示器上发出警示，并将事件录像保存在这台 Mac。</p>
-          <div class="hero-actions"><a class="button button-primary" data-download-cta href="https://github.com/WayneGongCN/mac-sentry/releases/download/v1.1.0/MacSentry-v1.1.0-macos-arm64.zip"><svg><use href="#download"/></svg>下载 Mac 哨兵</a><a class="text-link" href="#features">了解它如何工作 <svg><use href="#arrow"/></svg></a></div>
+          <p class="hero-description">离开座位后，Mac 哨兵用摄像头在本机检测人脸。确认后触发告警，并将事件录像保存在这台 Mac。</p>
+          <div class="hero-actions"><a class="button button-primary" data-download-cta href="https://github.com/WayneGongCN/mac-sentry/releases/download/v1.2.0/MacSentry-v1.2.0-macos-arm64.zip"><svg><use href="#download"/></svg>下载 Mac 哨兵</a><a class="text-link" href="#features">了解它如何工作 <svg><use href="#arrow"/></svg></a></div>
           <p class="compatibility">Apple Silicon <span>·</span> macOS 13+ <span>·</span> 免费开源</p>
         </div>
         <div class="hero-visual">
           <div class="visual-label"><span class="status-dot"></span><span id="demo-status">守卫已就位</span><span class="label-right">ON-DEVICE / ALWAYS LOCAL</span></div>
           <div class="product-frame">
             <div class="window-toolbar"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Mac 哨兵</span><span class="toolbar-lock" aria-hidden="true">⌁</span></div>
-            <div class="product-screen"><img id="demo-image" src="/assets/guarding.jpg" alt="Mac 哨兵守卫界面：青色机械眼与扫描光带，底部保留系统解锁区域" width="1440" height="900" fetchpriority="high"></div>
+            <div class="product-screen"><img id="demo-image" src="/assets/guarding.jpg" alt="Mac 哨兵守卫预览，示例壁纸铺满屏幕" width="1440" height="900" fetchpriority="high"></div>
           </div>
-          <div class="demo-controls"><span>真实界面预览</span><div class="demo-switch" role="group" aria-label="切换界面预览"><button type="button" class="active" data-mode="guarding" aria-pressed="true"><span class="small-dot"></span>守卫中</button><button type="button" data-mode="warning" aria-pressed="false"><span class="small-dot"></span>告警中</button></div></div>
+          <div class="demo-controls"><span>界面预览</span><div class="demo-switch" role="group" aria-label="切换界面预览"><button type="button" class="active" data-mode="guarding" aria-pressed="true"><span class="small-dot"></span>守卫中</button><button type="button" data-mode="warning" aria-pressed="false"><span class="small-dot"></span>告警中</button></div></div>
           <span class="visual-coordinate" aria-hidden="true">01 — READY WHEN YOU STEP AWAY</span>
         </div>
       </section>
@@ -79,17 +79,17 @@
           <div class="feature-copy"><p class="feature-index">01 / FACE FIRST</p><h3>看见人脸，<br>再发出警告。</h3><p>在整个摄像头画面里检测足够大的人脸。连续三次确认后触发告警。</p><div class="feature-note"><strong>3 次连续确认</strong><span>合格人脸消失 10 秒后恢复守卫</span></div><p class="fine-print">可选的机主豁免会在本机比对选定的照片。光照和角度会影响匹配，照片或屏幕中的脸也可能触发。</p></div>
         </div>
         <div class="feature-pair">
-          <article class="feature-card display-card"><p class="feature-index">02 / EVERY DISPLAY</p><h3>每一块屏幕，<br>都进入守卫状态。</h3><p>内置屏与扩展屏同步切换警示画面。主屏保留底部系统解锁区，扩展屏完整覆盖。</p><div class="display-diagram" aria-hidden="true"><div class="monitor laptop"><svg><use href="#eye"/></svg><div class="unlock-strip">系统解锁区</div></div><div class="monitor portrait"><svg><use href="#eye"/></svg><span>守卫中</span></div><div class="desk-line"></div></div></article>
+          <article class="feature-card display-card"><p class="feature-index">02 / EVERY DISPLAY</p><h3>自定义锁屏壁纸，<br>保留原生登录。</h3><p>在系统墙纸设置中为所需显示器启用。守卫和告警图片铺满屏幕，原生登录控件显示在壁纸上方。</p><div class="display-diagram" aria-hidden="true"><div class="monitor laptop"><span class="unlock-label">原生登录</span></div><div class="monitor portrait"></div><div class="desk-line"></div></div></article>
           <article class="feature-card recording-card"><p class="feature-index">03 / YOUR MAC, YOUR FOOTAGE</p><h3>重要的片段，<br>留在你自己的 Mac。</h3><p>按人脸事件保存原始摄像头画面。检测在本机完成，录像无需上传云端，自定义警示图片也不会混进录像。</p><div class="recording-spec"><div><strong>720<span>p</span></strong><span>事件录像</span></div><div><strong>15<span>fps</span></strong><span>无声 H.264</span></div><div><strong>24<span>h</span></strong><span>或最多 5GB</span></div></div><div class="local-file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h9l5 5v13H5ZM14 3v6h5M9 15l3 2 3-2-3-2-3 2Z"/></svg><div><strong>只保存需要留意的时刻</strong><span>离开后续录 10 秒，再次出现延长同一事件</span></div><span class="status-dot"></span></div></article>
         </div>
-        <article class="customization"><div><p class="feature-index">04 / MAKE IT YOURS</p><h3>你的画面。<br>你的警示方式。</h3><p>为守卫和告警各选一张图片，再配上自己的告警音。预览、试听、恢复默认，设置起来就这么直接。</p></div><div class="customization-options"><div><span class="option-icon" aria-hidden="true">◉</span><div><strong>守卫图片</strong><span>默认机械眼与扫描光带</span></div><span class="format-tag">PNG · JPEG · HEIC</span></div><div><span class="option-icon red" aria-hidden="true">▣</span><div><strong>告警图片</strong><span>默认显示实时摄像头画面</span></div><span class="format-tag">独立配置</span></div><div><span class="option-icon" aria-hidden="true">♫</span><div><strong>告警声音</strong><span>独立音量 · 两秒试听 · 告警解除即停</span></div><span class="format-tag">MP3 · M4A · WAV</span></div></div></article>
+        <article class="customization"><div><p class="feature-index">04 / MAKE IT YOURS</p><h3>你的画面。<br>你的警示方式。</h3><p>为守卫和告警各选一张图片，再配上自己的告警音。预览、试听、恢复默认，设置起来就这么直接。</p></div><div class="customization-options"><div><span class="option-icon" aria-hidden="true">◉</span><div><strong>守卫图片</strong><span>缺失时显示原系统壁纸</span></div><span class="format-tag">PNG · JPEG · HEIC · GIF · APNG</span></div><div><span class="option-icon red" aria-hidden="true">▣</span><div><strong>告警图片</strong><span>右上角显示实时摄像头</span></div><span class="format-tag">独立配置</span></div><div><span class="option-icon" aria-hidden="true">♫</span><div><strong>告警声音</strong><span>独立音量 · 两秒试听 · 告警解除即停</span></div><span class="format-tag">MP3 · M4A · WAV</span></div></div></article>
       </section>
 
-      <section id="setup" class="setup section-shell"><div class="section-heading"><p class="eyebrow">A SMALL SETUP. A QUIET GUARD.</p><h2>安装并启用锁屏守卫</h2><p>设置一次，下次锁屏时自动就位。</p></div><ol class="setup-steps"><li><span>01</span><h3>下载并安装</h3><p>解压 Release 安装包，将 MacSentry.app 移到“应用程序”后打开。</p></li><li><span>02</span><h3>授权与设置</h3><p>授权摄像头，开启“锁屏后自动守卫”。需要时选择自己的图片与告警音。</p></li><li><span>03</span><h3>锁屏，安心离开</h3><p>按 ⌃ ⌘ Q 锁屏，哨兵开始守卫。通过系统密码或 Touch ID 解锁后自动退出覆盖。</p></li></ol><p class="install-note"><span aria-hidden="true">ⓘ</span> 当前提供 Apple Silicon 版本，采用本地签名，尚未经过 Apple 公证。首次打开可能需要在“系统设置 → 隐私与安全性”中确认。<a href="https://github.com/WayneGongCN/mac-sentry#使用">查看安装说明 ↗</a></p></section>
+      <section id="setup" class="setup section-shell"><div class="section-heading"><p class="eyebrow">A SMALL SETUP. A QUIET GUARD.</p><h2>安装并启用锁屏守卫</h2><p>设置一次，下次锁屏时自动就位。</p></div><ol class="setup-steps"><li><span>01</span><h3>下载并安装</h3><p>解压 Release 安装包，将 MacSentry.app 移到“应用程序”后打开。</p></li><li><span>02</span><h3>授权与设置</h3><p>授权摄像头，开启“锁屏后自动守卫”。需要时在「画面、声音与通知」中启用锁屏壁纸。</p></li><li><span>03</span><h3>锁屏，安心离开</h3><p>按 ⌃ ⌘ Q 锁屏，哨兵开始守卫。通过系统密码或 Touch ID 解锁，结束守卫。</p></li></ol><p class="install-note"><span aria-hidden="true">ⓘ</span> 当前提供 Apple Silicon 版本，采用本地签名，尚未经过 Apple 公证。首次打开可能需要在“系统设置 → 隐私与安全性”中确认。<a href="https://github.com/WayneGongCN/mac-sentry#使用">查看安装说明 ↗</a></p></section>
 
-      <section id="faq" class="faq section-shell"><div><p class="eyebrow">GOOD TO KNOW</p><h2>Mac 哨兵<br><span>常见问题</span></h2><a class="text-link" href="https://github.com/WayneGongCN/mac-sentry/issues">还有问题？来 GitHub 聊聊 <svg><use href="#arrow"/></svg></a></div><div class="faq-list"><details><summary>什么情况下会触发告警？</summary><p>完整摄像头画面均参与检测。人脸框须完整位于画面内，宽高分别至少占画面宽高的 10%。检测置信度达到 0.65，并连续三次确认后触发。合盖、断网和拔电源也可作为独立触发条件，默认关闭。</p></details><details><summary>会识别我本人，或者判断是否是真人吗？</summary><p>试验性的机主豁免可使用一张本地照片，匹配的人脸可跳过告警。同框的其他人仍可触发。应用不进行活体判断，符合条件的侧脸、照片或屏幕中的脸也可能触发。</p></details><details><summary>摄像头画面会上传吗？</summary><p>人脸检测与录像都在本机完成，不上传摄像头画面。可选 Bark 通知默认关闭，开启后只向你指定的地址发送告警标题和原因，不附带照片、视频或音频。<a href="https://github.com/WayneGongCN/mac-sentry/blob/main/Resources/Privacy.md">查看应用隐私说明</a>。</p></details><details><summary>声音默认会响吗？</summary><p>新安装默认关闭声音告警。开启后，所选告警音按独立音量循环播放，解除告警或解锁后停止；守卫状态始终静音。应用不修改系统音量。</p></details><details><summary>合上盖子或让 Mac 睡眠后，还会工作吗？</summary><p>接电且守卫期间会保持亮屏，电池供电遵循系统电源设置。合盖、主动睡眠和低电量睡眠可能中断采集；熄屏或睡眠前会释放摄像头并收尾录像，唤醒后仍锁定则恢复。</p></details><details><summary>支持哪些 Mac？</summary><p>当前发布包面向 Apple Silicon，要求 macOS 13 或更高版本。锁屏展示使用 SkyLight 私有系统接口，系统升级后需要重新检查覆盖与解锁表现。源码、构建方式和已知边界均公开在 GitHub。</p></details></div></section>
+      <section id="faq" class="faq section-shell"><div><p class="eyebrow">GOOD TO KNOW</p><h2>Mac 哨兵<br><span>常见问题</span></h2><a class="text-link" href="https://github.com/WayneGongCN/mac-sentry/issues">还有问题？来 GitHub 聊聊 <svg><use href="#arrow"/></svg></a></div><div class="faq-list"><details><summary>什么情况下会触发告警？</summary><p>完整摄像头画面均参与检测。人脸框须完整位于画面内，宽高分别至少占画面宽高的 10%。检测置信度达到 0.65，并连续三次确认后触发。合盖、断网和拔电源也可作为独立触发条件，默认关闭。</p></details><details><summary>会识别我本人，或者判断是否是真人吗？</summary><p>试验性的机主豁免可使用一张本地照片，匹配的人脸可跳过告警。同框的其他人仍可触发。应用不进行活体判断，符合条件的侧脸、照片或屏幕中的脸也可能触发。</p></details><details><summary>摄像头画面会上传吗？</summary><p>人脸检测与录像都在本机完成，不上传摄像头画面。可选 Bark 通知默认关闭，开启后只向你指定的地址发送告警标题和原因，不附带照片、视频或音频。<a href="https://github.com/WayneGongCN/mac-sentry/blob/main/Resources/Privacy.md">查看应用隐私说明</a>。</p></details><details><summary>声音默认会响吗？</summary><p>新安装默认关闭声音告警。开启后，所选告警音按独立音量循环播放，解除告警或解锁后停止；守卫状态始终静音。应用不修改系统音量。</p></details><details><summary>合上盖子或让 Mac 睡眠后，还会工作吗？</summary><p>接电且守卫期间会保持亮屏，电池供电遵循系统电源设置。合盖、主动睡眠和低电量睡眠可能中断采集；熄屏或睡眠前会释放摄像头并收尾录像，唤醒后仍锁定则恢复。</p></details><details><summary>支持哪些 Mac？</summary><p>当前发布包面向 Apple Silicon，要求 macOS 13 或更高版本。自定义锁屏壁纸目前支持 macOS 27.2（26B123）。其他版本使用系统锁屏，仍可进行本地人脸检测与录像。源码、构建方式和已知边界均公开在 GitHub。</p></details></div></section>
 
-      <section class="download-section section-shell"><div class="download-mark" aria-hidden="true"><svg><use href="#eye"/></svg></div><p class="eyebrow">READY WHEN YOU STEP AWAY.</p><h2>免费下载 Mac 哨兵</h2><a class="button button-primary" data-download-cta href="https://github.com/WayneGongCN/mac-sentry/releases/download/v1.1.0/MacSentry-v1.1.0-macos-arm64.zip"><svg><use href="#download"/></svg>下载 Mac 哨兵 <span class="button-version">v1.1.0</span></a><p class="compatibility">Apple Silicon · macOS 13+ · MIT License</p><a class="release-link" href="https://github.com/WayneGongCN/mac-sentry/releases/latest">发布说明与 SHA-256 校验文件 ↗</a></section>
+      <section class="download-section section-shell"><div class="download-mark" aria-hidden="true"><svg><use href="#eye"/></svg></div><p class="eyebrow">READY WHEN YOU STEP AWAY.</p><h2>免费下载 Mac 哨兵</h2><a class="button button-primary" data-download-cta href="https://github.com/WayneGongCN/mac-sentry/releases/download/v1.2.0/MacSentry-v1.2.0-macos-arm64.zip"><svg><use href="#download"/></svg>下载 Mac 哨兵 <span class="button-version">v1.2.0</span></a><p class="compatibility">Apple Silicon · macOS 13+ · MIT License</p><a class="release-link" href="https://github.com/WayneGongCN/mac-sentry/releases/latest">发布说明与 SHA-256 校验文件 ↗</a></section>
     </main>
 
     <footer class="site-footer section-shell"><a class="brand footer-brand" href="#"><span class="brand-mark"><svg><use href="#eye"/></svg></span><span>Mac 哨兵</span></a><p>由 waynegong 定制 · 基于 <a href="https://github.com/Lakr233/Sentry">Lakr233/Sentry</a> · MIT 开源 · <a href="https://policies.google.com/technologies/partner-sites?hl=zh-CN">Google Analytics 访问统计</a></p><a href="https://github.com/WayneGongCN/mac-sentry">查看源码 ↗</a></footer>
