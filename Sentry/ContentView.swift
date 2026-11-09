@@ -23,7 +23,8 @@ struct ContentView: View {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle("锁屏后自动守卫", isOn: $sentry.automaticEnabled)
-                        Toggle("检测中央区域人脸", isOn: $settings.cfg.sentryTriggersHumanEnabled)
+                        Toggle("检测人脸", isOn: $settings.cfg.sentryTriggersHumanEnabled)
+                        OwnerFaceSettings()
                         Toggle("保存人脸事件录像", isOn: $settings.cfg.sentryRecordingEnabled)
                         Text("锁屏后自动开始。合格人脸消失 10 秒后恢复守卫；录像保留 24 小时或最多 5GB。")
                             .font(.callout).foregroundStyle(.secondary)
@@ -58,7 +59,7 @@ struct ContentView: View {
                         Toggle("拔电源触发", isOn: $settings.cfg.sentryTriggersPowerEnabled)
                     }.padding(.top, 12)
                 }
-                Text("基于 Lakr233/Sentry 1.3.13 · 定制版 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0") · 人脸检测包含机主，不区分身份或活体")
+                Text("基于 Lakr233/Sentry 1.3.13 · 定制版 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0")")
                     .font(.caption).foregroundStyle(.tertiary)
             }.padding(28)
         }

@@ -14,7 +14,7 @@ final class Sentry: NSObject, ObservableObject {
     @Published private(set) var recordingState: RecordingState = .idle
     @Published private(set) var media = SentryMedia()
     @Published private(set) var lastEvent = "等待下一次锁屏"
-    @Published private(set) var alarmReason = "检测到中央区域人脸"
+    @Published private(set) var alarmReason = "检测到人脸"
     @Published var automaticEnabled: Bool {
         didSet {
             UserDefaults.standard.set(automaticEnabled, forKey: "automaticEnabled")
@@ -147,7 +147,7 @@ final class Sentry: NSObject, ObservableObject {
         lastEvent = "本次守卫开始于 \(Date().formatted(date: .omitted, time: .standard))"
         refreshOverlay()
         setPowerHold(DeviceCheck.isConnectedToPower())
-        capture.start(detectionEnabled: configuration.sentryTriggersHumanEnabled)
+        capture.start(detectionEnabled: configuration.sentryTriggersHumanEnabled, useOwnerReference: true)
     }
 
     // 显示器变化时只重建展示窗口，检测、告警、播放器与录像继续运行，喵~
@@ -255,7 +255,7 @@ final class Sentry: NSObject, ObservableObject {
         if configuration.sentryTriggersHumanEnabled { presence.ingest(confidence: confidence, at: time) }
         if presence.isActive && !previous {
             logger.notice("人脸已确认，开始人脸事件")
-            if !deviceAlarm { alarmReason = "检测到中央区域人脸" }
+            if !deviceAlarm { alarmReason = "检测到人脸" }
             lastEvent = "人脸事件 · \(Date().formatted(date: .omitted, time: .standard))"
             if configuration.sentryRecordingEnabled { capture.beginEvent() }
         } else if previous && !presence.isActive {

@@ -69,7 +69,7 @@ final class CapturePipeline: NSObject {
     deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 
     // 锁屏时启动共享采集会话，权限不足时仅提示故障，喵~
-    func start(detectionEnabled: Bool) {
+    func start(detectionEnabled: Bool, useOwnerReference: Bool = false) {
         queue.async { [self] in
             guard !monitoring else { return }
             guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else {
@@ -80,7 +80,11 @@ final class CapturePipeline: NSObject {
             catch { recordingState(.failed("录像目录暂不可用：\(error.localizedDescription)")) }
             do {
                 if !configured { try configure() }
-                sampleQueue.sync { detector.enabled = detectionEnabled }
+                let owner = detectionEnabled && useOwnerReference ? try? OwnerFaceStore.shared.load() : nil
+                sampleQueue.sync {
+                    detector.enabled = detectionEnabled
+                    detector.ownerReference = owner
+                }
                 monitoring = true
                 session.startRunning()
                 try configureFrameRate()
@@ -95,6 +99,7 @@ final class CapturePipeline: NSObject {
             monitoring = false
             finishEvent()
             session.stopRunning()
+            sampleQueue.sync { detector.ownerReference = nil }
         }
     }
 

@@ -16,7 +16,7 @@ struct SentryHUD: View {
     var session: AVCaptureSession
     var recording: RecordingState = .idle
     var issue: String?
-    var reason = "检测到中央区域人脸"
+    var reason = "检测到人脸"
     var isPreview = false
     var previewCamera = true
     var media = SentryMedia()
@@ -82,7 +82,7 @@ struct SentryHUD: View {
                            height: max(0, min(space.size.height * (portrait ? 0.60 : 0.86), space.size.width * (portrait ? 0.70 : 0.40))))
                     VStack(alignment: .leading, spacing: 18) {
                         Text("哨兵模式已开启").font(.system(size: max(1, min(38, space.size.width * 0.035)), weight: .semibold))
-                        Text(issue == nil ? "正在监测中央区域人脸" : "监测暂不可用")
+                        Text(issue == nil ? "正在监测人脸" : "监测暂不可用")
                             .font(.system(size: 18)).foregroundStyle(issue == nil ? cyan : .orange)
                         Rectangle().fill(cyan.opacity(0.35)).frame(width: 64, height: 2)
                         Text(issue ?? "此电脑正在受到保护\n请勿触碰或移动设备")

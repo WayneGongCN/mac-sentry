@@ -290,7 +290,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Mac 哨兵";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Mac 哨兵使用摄像头在锁屏期间检测中央区域人脸，并将事件录像保存在本机。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Mac 哨兵使用摄像头在锁屏期间检测人脸，并将事件录像保存在本机。";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2025 Lakr Aream. All rights reserved.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -324,7 +324,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Mac 哨兵";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Mac 哨兵使用摄像头在锁屏期间检测中央区域人脸，并将事件录像保存在本机。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Mac 哨兵使用摄像头在锁屏期间检测人脸，并将事件录像保存在本机。";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2025 Lakr Aream. All rights reserved.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

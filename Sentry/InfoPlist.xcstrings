@@ -50,7 +50,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mac 哨兵使用摄像头在锁屏期间检测中央区域人脸，并将事件录像保存在本机。"
+            "value" : "Mac 哨兵使用摄像头在锁屏期间检测人脸，并将事件录像保存在本机。"
           }
         }
       }

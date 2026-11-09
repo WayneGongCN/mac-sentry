@@ -130,17 +130,18 @@ final class SentryLogicTests: XCTestCase {
         XCTAssertTrue(config.mediaReferences.isEmpty)
     }
 
-    // 中央区域包含边界，边带中的高置信度人脸不能触发或遮蔽中央有效结果，喵~
-    func testFaceCentersAndMultipleFaces() {
-        for center in [CGPoint(x: 0.15, y: 0.5), CGPoint(x: 0.85, y: 0.5),
-                       CGPoint(x: 0.5, y: 0.15), CGPoint(x: 0.5, y: 0.85)] {
-            XCTAssertEqual(FaceFilter.confidence(in: [face(center: center)]), 0.9)
-        }
-        for center in [CGPoint(x: 0.149, y: 0.5), CGPoint(x: 0.851, y: 0.5),
-                       CGPoint(x: 0.5, y: 0.149), CGPoint(x: 0.5, y: 0.851)] {
-            let edge = face(center: center, confidence: 0.99)
-            XCTAssertEqual(FaceFilter.confidence(in: [edge]), 0)
-            XCTAssertEqual(FaceFilter.confidence(in: [edge, face(confidence: 0.7)]), 0.7)
+    // 贴住画面四边的人脸可参与连续确认，多脸时采用最高置信度，喵~
+    func testFacesAlongFrameEdgesAndMultipleFaces() {
+        for center in [CGPoint(x: 0.0625, y: 0.5), CGPoint(x: 0.9375, y: 0.5),
+                       CGPoint(x: 0.5, y: 0.0625), CGPoint(x: 0.5, y: 0.9375)] {
+            let edge = face(center: center, size: CGSize(width: 0.125, height: 0.125), confidence: 0.99)
+            let confidence = FaceFilter.confidence(in: [edge, face(confidence: 0.7)])
+            XCTAssertEqual(confidence, 0.99)
+            var presence = FacePresence()
+            for time in [0.0, 0.34, 0.68] {
+                presence.ingest(confidence: FaceFilter.confidence(in: [edge]), at: time)
+            }
+            XCTAssertTrue(presence.isActive)
         }
         XCTAssertEqual(FaceFilter.confidence(in: []), 0)
         XCTAssertEqual(FaceFilter.confidence(in: [face(confidence: 0.7), face(confidence: 0.95)]), 0.95)
@@ -174,7 +175,7 @@ final class SentryLogicTests: XCTestCase {
             presence.ingest(confidence: FaceFilter.confidence(in: [face(confidence: 0.65)]), at: time)
         }
         XCTAssertTrue(presence.isActive)
-        presence.ingest(confidence: FaceFilter.confidence(in: [face(center: CGPoint(x: 0.1, y: 0.5))]), at: 11.69)
+        presence.ingest(confidence: FaceFilter.confidence(in: []), at: 11.69)
         XCTAssertTrue(presence.isActive)
         presence.expire(at: 11.70)
         XCTAssertFalse(presence.isActive)
