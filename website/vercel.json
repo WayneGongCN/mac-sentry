@@ -6,6 +6,12 @@
   "outputDirectory": ".",
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "mac-sentry.vercel.app" }],
+      "destination": "https://mac-sentry.waynegong.com/",
+      "statusCode": 301
+    },
+    {
       "source": "/index.html",
       "has": [{ "type": "host", "value": "mac-sentry.vercel.app" }],
       "destination": "https://mac-sentry.waynegong.com/",
