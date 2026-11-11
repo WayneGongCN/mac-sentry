@@ -80,7 +80,7 @@ python3 -m http.server 4317 --directory website
 
 生产首页的 canonical、分享卡片、站点名称和 `sitemap.xml` 都使用 `https://mac-sentry.waynegong.com/`。更换域名时，同步更新 `website/index.html`、`website/robots.txt` 和 `website/sitemap.xml`。
 
-Google Search Console 使用官网的 URL 前缀属性，由首页的 `google-site-verification` 标签验证所有权，站点地图为 `/sitemap.xml`。更换域名时为新属性重新验证。
+Google Search Console 和 Bing Webmaster Tools 都使用官网的 URL 前缀，由首页的 `google-site-verification` 和 `msvalidate.01` 标签分别验证所有权，共用 `/sitemap.xml`。更换域名时为新站重新验证并提交站点地图。
 
 生产官网使用 GA4 统计页面访问和下载按钮点击（`download_click`），标签位于 `website/app.js`，只在生产域名启用。更换域名或 GA4 数据流时，同步更新域名和测量 ID。
 
