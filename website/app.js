@@ -30,7 +30,7 @@ document.querySelectorAll("[data-mode]").forEach((button) => {
   button.addEventListener("click", () => selectPreview(button.dataset.mode));
 });
 
-if (window.location.origin === "https://mac-sentry.vercel.app") {
+if (window.location.origin === "https://mac-sentry.waynegong.com") {
   const measurementId = "G-1B61MR7V7V";
   window.dataLayer = window.dataLayer || [];
 
